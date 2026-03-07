@@ -1,3 +1,4 @@
+
 generator client {
   provider = "prisma-client-js"
 }
@@ -40,26 +41,25 @@ model quiz_forms {
   heure_visite         String?   @db.VarChar(20)
   archived             Boolean?  @default(false)
   created_at           DateTime? @default(now()) @db.Timestamp(6)
-
-  // Relations
-  visite    visites?
-  audio     audio?
+  visite               visites?
+  audio                audio?
 }
 
 model agents {
-  id         Int       @id @default(autoincrement())
-  nom        String    @db.VarChar(100)
-  prenom     String?   @db.VarChar(100)
-  email      String?   @unique @db.VarChar(100)
-  telephone  String?   @db.VarChar(20)
-  role       String    @default("benevole") @db.VarChar(50)
-  zone       String?   @db.VarChar(100)
-  actif      Boolean   @default(true)
-  created_at DateTime  @default(now())
-
-  // Relations
+  id         Int        @id @default(autoincrement())
+  nom        String     @db.VarChar(100)
+  prenom     String?    @db.VarChar(100)
+  email      String?    @unique @db.VarChar(100)
+  password   String?    @db.VarChar(255)
+  telephone  String?    @db.VarChar(20)
+  role       String     @default("benevole") @db.VarChar(50)
+  zone       String?    @db.VarChar(100)
+  actif      Boolean    @default(true)
+  created_at DateTime   @default(now())
   visites    visites[]
   dons       dons[]
+  accounts   accounts[]
+  sessions   sessions[]
 }
 
 model visites {
@@ -72,8 +72,6 @@ model visites {
   adresse      String?    @db.VarChar(200)
   notes        String?
   created_at   DateTime   @default(now())
-
-  // Relations
   agent        agents     @relation(fields: [agent_id], references: [id])
   form         quiz_forms @relation(fields: [form_id], references: [id])
 }
@@ -86,22 +84,44 @@ model audio {
   mots_cles     String[]
   duree_sec     Int?
   created_at    DateTime   @default(now())
-
-  // Relation
   form          quiz_forms @relation(fields: [form_id], references: [id])
 }
 
 model dons {
-  id         Int       @id @default(autoincrement())
+  id         Int      @id @default(autoincrement())
   agent_id   Int?
   montant    Float?
-  statut     String    @default("en_attente") @db.VarChar(50)
-  type       String    @default("don") @db.VarChar(50)
-  nom        String?   @db.VarChar(100)
-  email      String?   @db.VarChar(100)
+  statut     String   @default("en_attente") @db.VarChar(50)
+  type       String   @default("don") @db.VarChar(50)
+  nom        String?  @db.VarChar(100)
+  email      String?  @db.VarChar(100)
   notes      String?
-  created_at DateTime  @default(now())
+  created_at DateTime @default(now())
+  agent      agents?  @relation(fields: [agent_id], references: [id])
+}
 
-  // Relation
-  agent      agents?   @relation(fields: [agent_id], references: [id])
+model accounts {
+  id                String  @id @default(cuid())
+  agent_id          Int
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+  agent             agents  @relation(fields: [agent_id], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model sessions {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  agent_id     Int
+  expires      DateTime
+  agent        agents   @relation(fields: [agent_id], references: [id], onDelete: Cascade)
 }

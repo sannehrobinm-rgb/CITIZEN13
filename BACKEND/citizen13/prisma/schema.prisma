@@ -1,0 +1,43 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model quiz_forms {
+  id                   Int       @id @default(autoincrement())
+  nom_benevole         String?   @db.VarChar(100)
+  adresse              String?   @db.VarChar(200)
+  quartier             String?   @db.VarChar(100)
+  batiment             Boolean?
+  immeuble             Boolean?
+  maison               Boolean?
+  batiment_numero      String?   @db.VarChar(20)
+  etage                String?   @db.VarChar(10)
+  appartement          String?   @db.VarChar(10)
+  inscrit_listes       String?   @db.VarChar(50)
+  intention_vote       String?   @db.VarChar(50)
+  aide_procuration     Boolean?
+  raisons_non_vote     String[]
+  raison_autre_texte   String?
+  info_municipales     String?   @db.VarChar(50)
+  interets             String[]
+  preoccupations_texte String?
+  themes_importants    String[]
+  propositions_texte   String?
+  souhait_suivi        String[]
+  contact_accord       Boolean?
+  nom                  String?   @db.VarChar(50)
+  prenom               String?   @db.VarChar(50)
+  telephone            String?   @db.VarChar(20)
+  email                String?   @db.VarChar(100)
+  soutien_assoc        String?   @db.VarChar(50)
+  souhait_don          Boolean?
+  date_visite          String?   @db.VarChar(20)
+  heure_visite         String?   @db.VarChar(20)
+  archived             Boolean?  @default(false)
+  created_at           DateTime? @default(now()) @db.Timestamp(6)
+}

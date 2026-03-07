@@ -39,7 +39,7 @@ export default function ResponsesTable() {
   const fetchResponses = async () => {
     try {
       setLoading(true);
-      const res = await axios.get("http://localhost:5005/forms");
+      const res = await axios.get("http://localhost:3000/api/forms");
       const data: QuizFormData[] = res.data.data || [];
       setResponses(data);
       setFiltered(data);
@@ -64,7 +64,7 @@ export default function ResponsesTable() {
   // ---------------------------
   const handleSave = async (updatedData: QuizFormData) => {
     try {
-      await axios.put(`http://localhost:5005/forms/${updatedData.id}`, updatedData);
+      await axios.put(`http://localhost:3000/api/forms/${updatedData.id}`, updatedData);
       fetchResponses(); // Recharger les réponses après update
     } catch (err) {
       console.error(err);
@@ -79,7 +79,7 @@ export default function ResponsesTable() {
     if (!window.confirm("Voulez-vous vraiment supprimer cette réponse ?")) return;
 
     try {
-      await axios.delete(`http://localhost:5005/forms/${id}`);
+      await axios.delete(`http://localhost:3000/api/forms/${id}`);
       const updated = responses.filter((r) => r.id !== id);
       setResponses(updated);
       setFiltered(updated);

@@ -22,7 +22,7 @@ export default function Formulaire() {
     };
 
     try {
-      const res = await fetch("http://localhost:5005/forms", {
+      const res = await fetch("http://localhost:3000/api/forms", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

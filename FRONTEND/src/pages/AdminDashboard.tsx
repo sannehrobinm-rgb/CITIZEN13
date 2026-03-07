@@ -52,7 +52,7 @@ export default function AdminDashboard() {
   const fetchResponses = async () => {
     try {
       setLoading(true);
-      const res = await fetch("http://localhost:5005/admin/forms/responses");
+      const res = await fetch("http://localhost:3000/api/admin/forms/responses");
       if (!res.ok) throw new Error("Erreur serveur lors du fetch des réponses");
       const data = await res.json();
       setResponses(Array.isArray(data) ? data : []);
@@ -66,7 +66,7 @@ export default function AdminDashboard() {
   // -------- Fetch des templates --------
   const fetchTemplates = async () => {
     try {
-      const res = await fetch("http://localhost:5005/admin/forms/templates");
+      const res = await fetch("http://localhost:3000/api/admin/forms/templates");
       if (!res.ok) throw new Error("Erreur serveur templates");
       const data = await res.json();
       setTemplates(Array.isArray(data) ? data : []);
@@ -85,7 +85,7 @@ export default function AdminDashboard() {
   const handleArchive = async (id: string | number, archived: boolean) => {
     try {
       const res = await fetch(
-        `http://localhost:5005/admin/forms/responses/${id}/archive`,
+        `http://localhost:3000/api/admin/forms/responses/${id}/archive`,
         {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
@@ -104,12 +104,12 @@ export default function AdminDashboard() {
   };
 
   // -------- Filtrage + Pagination --------
-  const filteredResponses = responses.filter(
-    (r) =>
-      r.nom_benevole.toLowerCase().includes(search.toLowerCase()) ||
-      r.quartier.toLowerCase().includes(search.toLowerCase()) ||
-      (r.intention_vote?.toLowerCase().includes(search.toLowerCase()) ?? false)
-  );
+const filteredResponses = responses.filter(
+  (r) =>
+    (r.nom_benevole?.toLowerCase() ?? "").includes(search.toLowerCase()) ||
+    (r.quartier?.toLowerCase() ?? "").includes(search.toLowerCase()) ||
+    (r.intention_vote?.toLowerCase() ?? "").includes(search.toLowerCase())
+);
 
   const totalPages = Math.ceil(filteredResponses.length / PAGE_SIZE);
   const paginatedResponses = filteredResponses.slice(
@@ -332,7 +332,7 @@ export default function AdminDashboard() {
               <button
                 onClick={() => {
                   fetch(
-                    `http://localhost:5005/admin/forms/templates/${selectedTemplate.id}`,
+                    `http://localhost:3000/api/admin/forms/templates/${selectedTemplate.id}`,
                     {
                       method: "PUT",
                       headers: { "Content-Type": "application/json" },

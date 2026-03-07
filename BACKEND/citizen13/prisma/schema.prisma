@@ -40,4 +40,68 @@ model quiz_forms {
   heure_visite         String?   @db.VarChar(20)
   archived             Boolean?  @default(false)
   created_at           DateTime? @default(now()) @db.Timestamp(6)
+
+  // Relations
+  visite    visites?
+  audio     audio?
+}
+
+model agents {
+  id         Int       @id @default(autoincrement())
+  nom        String    @db.VarChar(100)
+  prenom     String?   @db.VarChar(100)
+  email      String?   @unique @db.VarChar(100)
+  telephone  String?   @db.VarChar(20)
+  role       String    @default("benevole") @db.VarChar(50)
+  zone       String?   @db.VarChar(100)
+  actif      Boolean   @default(true)
+  created_at DateTime  @default(now())
+
+  // Relations
+  visites    visites[]
+  dons       dons[]
+}
+
+model visites {
+  id           Int        @id @default(autoincrement())
+  agent_id     Int
+  form_id      Int        @unique
+  date_visite  String?    @db.VarChar(20)
+  heure_visite String?    @db.VarChar(20)
+  quartier     String?    @db.VarChar(100)
+  adresse      String?    @db.VarChar(200)
+  notes        String?
+  created_at   DateTime   @default(now())
+
+  // Relations
+  agent        agents     @relation(fields: [agent_id], references: [id])
+  form         quiz_forms @relation(fields: [form_id], references: [id])
+}
+
+model audio {
+  id            Int        @id @default(autoincrement())
+  form_id       Int        @unique
+  fichier_url   String?    @db.VarChar(500)
+  transcription String?
+  mots_cles     String[]
+  duree_sec     Int?
+  created_at    DateTime   @default(now())
+
+  // Relation
+  form          quiz_forms @relation(fields: [form_id], references: [id])
+}
+
+model dons {
+  id         Int       @id @default(autoincrement())
+  agent_id   Int?
+  montant    Float?
+  statut     String    @default("en_attente") @db.VarChar(50)
+  type       String    @default("don") @db.VarChar(50)
+  nom        String?   @db.VarChar(100)
+  email      String?   @db.VarChar(100)
+  notes      String?
+  created_at DateTime  @default(now())
+
+  // Relation
+  agent      agents?   @relation(fields: [agent_id], references: [id])
 }

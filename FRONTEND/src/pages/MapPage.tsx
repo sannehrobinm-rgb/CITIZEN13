@@ -1,0 +1,308 @@
+// MapPage.tsx
+import { useEffect, useState, useRef } from "react";
+import { useNavigate } from "react-router-dom";
+import L from "leaflet";
+import "leaflet/dist/leaflet.css";
+
+const C = {
+  g1: "#1a6b2e", g2: "#2d8a4e", g3: "#1a7a6b", g4: "#1a3a6b",
+  light: "#f0f7f4", text: "#111111", muted: "#555555", border: "#d9e8e0", white: "#ffffff",
+};
+const GRADIENT = `linear-gradient(135deg, ${C.g1} 0%, ${C.g3} 50%, ${C.g4} 100%)`;
+const API = "http://localhost:3000";
+
+// Quartiers du 13ème arrondissement de Paris
+const QUARTIER_COORDS: Record<string, [number, number]> = {
+  "Salpêtrière": [48.8394, 2.3567],
+  "Gare": [48.8389, 2.3651],
+  "Maison-Blanche": [48.8206, 2.3587],
+  "Croulebarbe": [48.8336, 2.3505],
+  "Butte-aux-Cailles": [48.8313, 2.3517],
+  "Place d'Italie": [48.8316, 2.3564],
+  "Tolbiac": [48.8264, 2.3615],
+  "Olympiades": [48.8274, 2.3668],
+  "Château des Rentiers": [48.8333, 2.3620],
+  "Ivry": [48.8250, 2.3690],
+  "Nationale": [48.8350, 2.3640],
+  "Patay": [48.8300, 2.3700],
+  "Dunois": [48.8360, 2.3680],
+  "Austerlitz": [48.8430, 2.3665],
+  "Glacière": [48.8290, 2.3480],
+  "Davout": [48.8230, 2.3550],
+  "Kellermann": [48.8200, 2.3650],
+  "Porte d'Ivry": [48.8210, 2.3720],
+  "Porte de Choisy": [48.8190, 2.3640],
+  "Masséna": [48.8290, 2.3730],
+  "Paris Rive Gauche": [48.8320, 2.3750],
+  "Chevaleret": [48.8350, 2.3740],
+  "Bibliothèque François-Mitterrand": [48.8338, 2.3775],
+};
+
+interface FormResponse {
+  id: number;
+  nom_benevole?: string;
+  quartier?: string;
+  adresse?: string;
+  intention_vote?: string;
+  date_visite?: string;
+  inscrit_listes?: string;
+  souhait_don?: boolean;
+}
+
+function getColor(count: number, max: number): string {
+  if (max === 0 || count === 0) return "#e8f5ee";
+  const ratio = count / max;
+  if (ratio > 0.8) return "#1a6b2e";
+  if (ratio > 0.6) return "#2d8a4e";
+  if (ratio > 0.4) return "#1a7a6b";
+  if (ratio > 0.2) return "#4a9a7a";
+  return "#a8d5bc";
+}
+
+export default function MapPage() {
+  const navigate = useNavigate();
+  const mapRef = useRef<L.Map | null>(null);
+  const mapContainerRef = useRef<HTMLDivElement>(null);
+  const markersRef = useRef<L.LayerGroup | null>(null);
+  const [responses, setResponses] = useState<FormResponse[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [filterBenevole, setFilterBenevole] = useState("Tous");
+  const [filterIntention, setFilterIntention] = useState("Toutes");
+  const [selectedQuartier, setSelectedQuartier] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch(`${API}/api/admin/forms/responses`)
+      .then(r => r.json())
+      .then(data => { setResponses(Array.isArray(data) ? data : []); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, []);
+
+  // Init map centrée sur le 13ème arrondissement de Paris
+  useEffect(() => {
+    if (!mapContainerRef.current || mapRef.current) return;
+    const map = L.map(mapContainerRef.current, {
+      center: [48.8280, 2.3620],
+      zoom: 14,
+      zoomControl: true,
+    });
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      attribution: '© <a href="https://www.openstreetmap.org/">OpenStreetMap</a>',
+      maxZoom: 19,
+    }).addTo(map);
+    markersRef.current = L.layerGroup().addTo(map);
+    mapRef.current = map;
+    return () => { map.remove(); mapRef.current = null; };
+  }, []);
+
+  // Update cercles et markers
+  useEffect(() => {
+    if (!mapRef.current || !markersRef.current) return;
+    markersRef.current.clearLayers();
+
+    const filtered = responses.filter(r => {
+      const matchB = filterBenevole === "Tous" || r.nom_benevole === filterBenevole;
+      const matchI = filterIntention === "Toutes" || r.intention_vote === filterIntention;
+      return matchB && matchI;
+    });
+
+    const counts: Record<string, FormResponse[]> = {};
+    filtered.forEach(r => {
+      if (r.quartier) {
+        if (!counts[r.quartier]) counts[r.quartier] = [];
+        counts[r.quartier].push(r);
+      }
+    });
+
+    const max = Math.max(...Object.values(counts).map(v => v.length), 1);
+
+    Object.entries(counts).forEach(([quartier, items]) => {
+      const coords = QUARTIER_COORDS[quartier];
+      if (!coords) return;
+      const color = getColor(items.length, max);
+      const radius = 120 + (items.length / max) * 280;
+
+      const circle = L.circle(coords, {
+        radius,
+        fillColor: color,
+        fillOpacity: 0.65,
+        color: color,
+        weight: 2,
+      });
+
+      const popupContent = `
+        <div style="font-family:'Segoe UI',sans-serif;min-width:190px">
+          <div style="background:${GRADIENT};color:white;padding:8px 12px;border-radius:6px 6px 0 0;font-weight:700;font-size:14px">
+            📍 ${quartier}
+          </div>
+          <div style="padding:10px 12px;background:#f9f9f9;border-radius:0 0 6px 6px">
+            <div style="font-size:13px;color:#111;margin-bottom:6px"><b>${items.length}</b> visite${items.length > 1 ? "s" : ""}</div>
+            <div style="font-size:12px;color:#555">🗳 Vote Oui : <b>${items.filter(i => i.intention_vote === "Oui").length}</b></div>
+            <div style="font-size:12px;color:#555">📝 Inscrits : <b>${items.filter(i => i.inscrit_listes === "Oui").length}</b></div>
+            <div style="font-size:12px;color:#555">💛 Dons : <b>${items.filter(i => i.souhait_don).length}</b></div>
+            <hr style="border:none;border-top:1px solid #ddd;margin:6px 0"/>
+            ${items.slice(0, 3).map(i => `<div style="font-size:11px;color:#777">• ${i.nom_benevole ?? "—"} (${i.date_visite ?? "—"})</div>`).join("")}
+            ${items.length > 3 ? `<div style="font-size:11px;color:#aaa">+${items.length - 3} autres...</div>` : ""}
+          </div>
+        </div>
+      `;
+
+      circle.bindPopup(popupContent, { maxWidth: 260 });
+      circle.on("click", () => setSelectedQuartier(quartier));
+      markersRef.current!.addLayer(circle);
+
+      // Badge numérique centré
+      const icon = L.divIcon({
+        html: `<div style="background:white;border:2px solid ${color};border-radius:50%;width:26px;height:26px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:${color};box-shadow:0 1px 4px rgba(0,0,0,0.2)">${items.length}</div>`,
+        className: "",
+        iconAnchor: [13, 13],
+      });
+      L.marker(coords, { icon }).addTo(markersRef.current!);
+    });
+  }, [responses, filterBenevole, filterIntention]);
+
+  const filtered = responses.filter(r => {
+    const matchB = filterBenevole === "Tous" || r.nom_benevole === filterBenevole;
+    const matchI = filterIntention === "Toutes" || r.intention_vote === filterIntention;
+    return matchB && matchI;
+  });
+
+  const counts: Record<string, number> = {};
+  filtered.forEach(r => { if (r.quartier) counts[r.quartier] = (counts[r.quartier] || 0) + 1; });
+  const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+  const max = Math.max(...sorted.map(s => s[1]), 1);
+
+  const benevoles = ["Tous", ...Array.from(new Set(responses.map(r => r.nom_benevole).filter(Boolean) as string[]))];
+  const intentions = ["Toutes", ...Array.from(new Set(responses.map(r => r.intention_vote).filter(Boolean) as string[]))];
+  const selectedItems = selectedQuartier ? responses.filter(r => r.quartier === selectedQuartier) : [];
+
+  return (
+    <div style={{ minHeight: "100vh", background: C.light, fontFamily: "'Segoe UI', sans-serif" }}>
+
+      {/* Header */}
+      <div style={{ background: GRADIENT, padding: "14px 28px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
+          <img src="/logo.png" alt="Citizen13" style={{ height: "40px", filter: "brightness(0) invert(1)" }} />
+          <span style={{ color: "rgba(255,255,255,0.85)", fontSize: "12px", letterSpacing: "0.1em", textTransform: "uppercase", fontWeight: "500" }}>
+            Carte des visites — Paris 13ème
+          </span>
+        </div>
+        <button onClick={() => navigate("/admin")}
+          style={{ padding: "7px 16px", background: "rgba(255,255,255,0.15)", color: "white", border: "1px solid rgba(255,255,255,0.3)", borderRadius: "8px", cursor: "pointer", fontSize: "13px" }}>
+          ← Dashboard
+        </button>
+      </div>
+
+      <div style={{ display: "flex", height: "calc(100vh - 64px)" }}>
+
+        {/* Sidebar */}
+        <div style={{ width: "290px", background: C.white, borderRight: `1px solid ${C.border}`, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+
+          {/* Filtres */}
+          <div style={{ padding: "16px", borderBottom: `1px solid ${C.border}` }}>
+            <h3 style={{ margin: "0 0 10px", fontSize: "12px", fontWeight: "700", color: C.text, textTransform: "uppercase", letterSpacing: "0.05em" }}>Filtres</h3>
+            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+              <select value={filterBenevole} onChange={e => setFilterBenevole(e.target.value)}
+                style={{ padding: "7px 10px", border: `1px solid ${C.border}`, borderRadius: "7px", fontSize: "13px", color: C.text }}>
+                {benevoles.map(b => <option key={b}>{b}</option>)}
+              </select>
+              <select value={filterIntention} onChange={e => setFilterIntention(e.target.value)}
+                style={{ padding: "7px 10px", border: `1px solid ${C.border}`, borderRadius: "7px", fontSize: "13px", color: C.text }}>
+                {intentions.map(i => <option key={i}>{i}</option>)}
+              </select>
+            </div>
+            <div style={{ marginTop: "8px", fontSize: "12px", color: C.muted }}>{filtered.length} visite(s) affichée(s)</div>
+          </div>
+
+          {/* Légende densité */}
+          <div style={{ padding: "12px 16px", borderBottom: `1px solid ${C.border}` }}>
+            <h3 style={{ margin: "0 0 8px", fontSize: "12px", fontWeight: "700", color: C.text, textTransform: "uppercase" }}>Densité</h3>
+            <div style={{ display: "flex", gap: "3px" }}>
+              {["#e8f5ee", "#a8d5bc", "#4a9a7a", "#1a7a6b", "#2d8a4e", "#1a6b2e"].map((c, i) => (
+                <div key={i} style={{ flex: 1, height: "14px", background: c, borderRadius: "2px" }} />
+              ))}
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", marginTop: "3px" }}>
+              <span style={{ fontSize: "10px", color: C.muted }}>Faible</span>
+              <span style={{ fontSize: "10px", color: C.muted }}>Élevée</span>
+            </div>
+          </div>
+
+          {/* Classement quartiers */}
+          <div style={{ padding: "12px 16px", overflowY: "auto", flex: 1 }}>
+            <h3 style={{ margin: "0 0 10px", fontSize: "12px", fontWeight: "700", color: C.text, textTransform: "uppercase" }}>Classement</h3>
+            {loading && <p style={{ fontSize: "13px", color: C.muted }}>Chargement...</p>}
+            {sorted.map(([q, n], i) => (
+              <div key={q}
+                onClick={() => {
+                  setSelectedQuartier(q === selectedQuartier ? null : q);
+                  if (QUARTIER_COORDS[q]) mapRef.current?.flyTo(QUARTIER_COORDS[q], 15, { duration: 0.8 });
+                }}
+                style={{ display: "flex", alignItems: "center", gap: "8px", padding: "7px 8px", borderRadius: "7px", marginBottom: "4px", cursor: "pointer", background: selectedQuartier === q ? "#e8f5ee" : "transparent", transition: "background 0.15s" }}>
+                <span style={{ fontSize: "11px", fontWeight: "700", color: C.muted, width: "16px" }}>{i + 1}</span>
+                <div style={{ flex: 1, background: C.light, borderRadius: "3px", height: "14px", overflow: "hidden" }}>
+                  <div style={{ width: `${(n / max) * 100}%`, height: "100%", background: getColor(n, max), borderRadius: "3px" }} />
+                </div>
+                <span style={{ fontSize: "12px", color: C.text, width: "100px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{q}</span>
+                <span style={{ fontSize: "12px", fontWeight: "700", color: C.g1, minWidth: "16px", textAlign: "right" }}>{n}</span>
+              </div>
+            ))}
+            {sorted.length === 0 && !loading && (
+              <p style={{ fontSize: "13px", color: "#aaa", textAlign: "center", marginTop: "20px" }}>
+                Aucune donnée.<br />
+                <span style={{ fontSize: "11px" }}>Remplis des formulaires avec un quartier du 13ème.</span>
+              </p>
+            )}
+          </div>
+        </div>
+
+        {/* Carte + panel détail */}
+        <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
+          <div ref={mapContainerRef} style={{ flex: 1 }} />
+
+          {/* Panel détail quartier sélectionné */}
+          {selectedQuartier && selectedItems.length > 0 && (
+            <div style={{ height: "220px", background: C.white, borderTop: `2px solid ${C.g1}`, overflowY: "auto", padding: "14px 20px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
+                <h3 style={{ margin: 0, fontSize: "15px", fontWeight: "800", color: C.text }}>
+                  📍 {selectedQuartier} — {selectedItems.length} visite(s)
+                </h3>
+                <button onClick={() => setSelectedQuartier(null)}
+                  style={{ background: "none", border: "none", cursor: "pointer", fontSize: "18px", color: C.muted }}>✕</button>
+              </div>
+              <div style={{ display: "flex", gap: "20px", marginBottom: "10px", fontSize: "13px" }}>
+                <span style={{ color: C.g1, fontWeight: "600" }}>🗳 Vote Oui : {selectedItems.filter(i => i.intention_vote === "Oui").length}</span>
+                <span style={{ color: C.g4, fontWeight: "600" }}>📝 Inscrits : {selectedItems.filter(i => i.inscrit_listes === "Oui").length}</span>
+                <span style={{ color: "#c9a800", fontWeight: "600" }}>💛 Dons : {selectedItems.filter(i => i.souhait_don).length}</span>
+              </div>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12px" }}>
+                <thead>
+                  <tr style={{ background: C.light }}>
+                    {["#", "Date", "Bénévole", "Adresse", "Intention", "Inscrit"].map(h => (
+                      <th key={h} style={{ padding: "5px 8px", textAlign: "left", color: C.muted, fontWeight: "600", fontSize: "11px" }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {selectedItems.map(r => (
+                    <tr key={r.id} style={{ borderBottom: `1px solid ${C.border}` }}>
+                      <td style={{ padding: "4px 8px", color: C.muted }}>#{r.id}</td>
+                      <td style={{ padding: "4px 8px" }}>{r.date_visite ?? "—"}</td>
+                      <td style={{ padding: "4px 8px", fontWeight: "600" }}>{r.nom_benevole ?? "—"}</td>
+                      <td style={{ padding: "4px 8px", color: C.muted, maxWidth: "160px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.adresse ?? "—"}</td>
+                      <td style={{ padding: "4px 8px" }}>
+                        <span style={{ padding: "1px 7px", borderRadius: "8px", fontSize: "11px", fontWeight: "600", background: r.intention_vote === "Oui" ? "#e8f5ee" : r.intention_vote === "Non" ? "#fdecea" : "#fef9e7", color: r.intention_vote === "Oui" ? C.g1 : r.intention_vote === "Non" ? "#b71c1c" : "#7d5a00" }}>
+                          {r.intention_vote ?? "—"}
+                        </span>
+                      </td>
+                      <td style={{ padding: "4px 8px" }}>{r.inscrit_listes ?? "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}

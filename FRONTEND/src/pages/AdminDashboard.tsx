@@ -251,6 +251,7 @@ export default function AdminDashboard() {
           <button onClick={exportCSV} style={hBtn}>⬇️ Export CSV</button>
           <button onClick={() => setShowTemplateModal(true)} style={hBtn}>📋 Templates</button>
           <button onClick={() => { localStorage.removeItem("token"); localStorage.removeItem("role"); localStorage.removeItem("user"); window.location.href = "/login"; }} style={hBtn}>🚪 Déconnexion</button>
+        <button onClick={() => navigate("/map")} style={hBtn}>🗺 Carte</button>
         </div>
       </div>
 
@@ -282,6 +283,9 @@ export default function AdminDashboard() {
               <BarChart data={stats.parInscrit} title="Inscription listes" />
               <BarChart data={stats.parBenevole} title="Visites par bénévole" />
             </div>
+            <div onClick={() => navigate("/map")} style={{ cursor: "pointer", background: C.white, borderRadius: "12px", padding: "16px", border: `2px dashed ${C.g1}`, textAlign: "center", color: C.g1, fontWeight: "700", fontSize: "14px" }}>
+  🗺 Voir la carte interactive des visites →
+</div>
           </div>
         )}
 

@@ -1,21 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
-export async function GET() {
+export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const dons = await (prisma as any).dons.findMany({ orderBy: { created_at: "desc" }, include: { agent: true } });
-    return NextResponse.json(dons);
+    const { id } = await params;
+    const body = await req.json();
+    const don = await (prisma as any).dons.update({ where: { id: parseInt(id) }, data: body });
+    return NextResponse.json(don);
   } catch (err) {
-    return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });
+    return NextResponse.json({ error: "Erreur modification" }, { status: 500 });
   }
 }
 
-export async function POST(req: NextRequest) {
+export async function DELETE(_: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const body = await req.json();
-    const don = await (prisma as any).dons.create({ data: body });
-    return NextResponse.json(don, { status: 201 });
+    const { id } = await params;
+    await (prisma as any).dons.delete({ where: { id: parseInt(id) } });
+    return NextResponse.json({ success: true });
   } catch (err) {
-    return NextResponse.json({ error: "Erreur création" }, { status: 500 });
+    return NextResponse.json({ error: "Erreur suppression" }, { status: 500 });
   }
 }

@@ -27,6 +27,17 @@ interface Agent {
   telephone?: string; role: string; zone?: string; actif: boolean;
   created_at: string;
 }
+interface Don {
+  id: number; agent_id?: number; montant?: number; statut: string;
+  type: string; nom?: string; email?: string; notes?: string;
+  created_at: string; agent?: Agent;
+}
+
+const STATUT_COLORS: Record<string, { bg: string; color: string }> = {
+  en_attente: { bg: "#fef9e7", color: "#7d5a00" },
+  recu: { bg: "#e8f5ee", color: "#1a6b2e" },
+  annule: { bg: "#fdecea", color: "#b71c1c" },
+};
 
 function StatCard({ label, value, icon, gradient }: { label: string; value: number | string; icon: string; gradient: string }) {
   return (
@@ -68,6 +79,7 @@ export default function AdminDashboard() {
   const [responses, setResponses] = useState<FormResponse[]>([]);
   const [templates, setTemplates] = useState<FormTemplate[]>([]);
   const [agents, setAgents] = useState<Agent[]>([]);
+  const [dons, setDons] = useState<Don[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
@@ -75,7 +87,7 @@ export default function AdminDashboard() {
   const [selectedResponse, setSelectedResponse] = useState<FormResponse | null>(null);
   const [selectedTemplate, setSelectedTemplate] = useState<FormTemplate | null>(null);
   const [showTemplateModal, setShowTemplateModal] = useState(false);
-  const [activeTab, setActiveTab] = useState<"stats" | "responses" | "archive" | "agents">("stats");
+  const [activeTab, setActiveTab] = useState<"stats" | "responses" | "archive" | "agents" | "dons">("stats");
   const [filterQuartier, setFilterQuartier] = useState("Tous");
   const [filterIntention, setFilterIntention] = useState("Toutes");
   const [filterArchived, setFilterArchived] = useState<"all" | "active" | "archived">("active");
@@ -84,6 +96,10 @@ export default function AdminDashboard() {
   const [showAgentModal, setShowAgentModal] = useState(false);
   const [editingAgent, setEditingAgent] = useState<Partial<Agent> | null>(null);
   const [agentPassword, setAgentPassword] = useState("");
+
+  // Don modal
+  const [showDonModal, setShowDonModal] = useState(false);
+  const [editingDon, setEditingDon] = useState<Partial<Don> | null>(null);
 
   const fetchResponses = async () => {
     try {
@@ -95,42 +111,28 @@ export default function AdminDashboard() {
     } catch (err: any) { setError(err.message); }
     finally { setLoading(false); }
   };
-
   const fetchTemplates = async () => {
-    try {
-      const res = await fetch(`${API}/api/admin/forms/templates`);
-      const data = await res.json();
-      setTemplates(Array.isArray(data) ? data : []);
-    } catch (err: any) { console.error(err); }
+    try { const res = await fetch(`${API}/api/admin/forms/templates`); const data = await res.json(); setTemplates(Array.isArray(data) ? data : []); } catch {}
   };
-
   const fetchAgents = async () => {
-    try {
-      const res = await fetch(`${API}/api/agents`);
-      const data = await res.json();
-      setAgents(Array.isArray(data) ? data : []);
-    } catch (err: any) { console.error(err); }
+    try { const res = await fetch(`${API}/api/agents`); const data = await res.json(); setAgents(Array.isArray(data) ? data : []); } catch {}
+  };
+  const fetchDons = async () => {
+    try { const res = await fetch(`${API}/api/dons`); const data = await res.json(); setDons(Array.isArray(data) ? data : []); } catch {}
   };
 
-  useEffect(() => { fetchResponses(); fetchTemplates(); fetchAgents(); }, []);
+  useEffect(() => { fetchResponses(); fetchTemplates(); fetchAgents(); fetchDons(); }, []);
 
   const handleArchive = async (id: string | number, archived: boolean) => {
     try {
-      const res = await fetch(`${API}/api/admin/forms/responses/${id}/archive`, {
-        method: "PATCH", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ archived }),
-      });
+      const res = await fetch(`${API}/api/admin/forms/responses/${id}/archive`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ archived }) });
       if (!res.ok) throw new Error("Erreur archivage");
       setResponses(prev => prev.map(r => r.id === id ? { ...r, archived } : r));
     } catch (err: any) { alert(err.message); }
   };
-
   const handleDelete = async (id: string | number) => {
-    if (!window.confirm("Supprimer définitivement cette réponse ?")) return;
-    try {
-      await fetch(`${API}/api/forms/${id}`, { method: "DELETE" });
-      setResponses(prev => prev.filter(r => r.id !== id));
-    } catch { alert("Erreur suppression"); }
+    if (!window.confirm("Supprimer définitivement ?")) return;
+    try { await fetch(`${API}/api/forms/${id}`, { method: "DELETE" }); setResponses(prev => prev.filter(r => r.id !== id)); } catch { alert("Erreur suppression"); }
   };
 
   // ── Agents CRUD ──
@@ -139,48 +141,61 @@ export default function AdminDashboard() {
     try {
       const payload: any = { ...editingAgent };
       if (agentPassword) payload.password = agentPassword;
-
       if (editingAgent.id) {
-        await fetch(`${API}/api/agents/${editingAgent.id}`, {
-          method: "PUT", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        });
+        await fetch(`${API}/api/agents/${editingAgent.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
       } else {
-        await fetch(`${API}/api/agents`, {
-          method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        });
+        await fetch(`${API}/api/agents`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
       }
-      fetchAgents();
-      setShowAgentModal(false);
-      setEditingAgent(null);
-      setAgentPassword("");
+      fetchAgents(); setShowAgentModal(false); setEditingAgent(null); setAgentPassword("");
     } catch { alert("Erreur sauvegarde agent"); }
   };
-
   const handleDeleteAgent = async (id: number) => {
     if (!window.confirm("Supprimer cet agent ?")) return;
-    try {
-      await fetch(`${API}/api/agents/${id}`, { method: "DELETE" });
-      setAgents(prev => prev.filter(a => a.id !== id));
-    } catch { alert("Erreur suppression agent"); }
+    try { await fetch(`${API}/api/agents/${id}`, { method: "DELETE" }); setAgents(prev => prev.filter(a => a.id !== id)); } catch { alert("Erreur suppression agent"); }
   };
-
   const handleToggleAgent = async (agent: Agent) => {
     try {
-      await fetch(`${API}/api/agents/${agent.id}`, {
-        method: "PUT", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ actif: !agent.actif }),
-      });
+      await fetch(`${API}/api/agents/${agent.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ actif: !agent.actif }) });
       setAgents(prev => prev.map(a => a.id === agent.id ? { ...a, actif: !a.actif } : a));
     } catch { alert("Erreur mise à jour"); }
   };
+
+  // ── Dons CRUD ──
+  const handleSaveDon = async () => {
+    if (!editingDon) return;
+    try {
+      const payload = { ...editingDon };
+      if (editingDon.id) {
+        await fetch(`${API}/api/dons/${editingDon.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+      } else {
+        await fetch(`${API}/api/dons`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+      }
+      fetchDons(); setShowDonModal(false); setEditingDon(null);
+    } catch { alert("Erreur sauvegarde don"); }
+  };
+  const handleDeleteDon = async (id: number) => {
+    if (!window.confirm("Supprimer ce don ?")) return;
+    try { await fetch(`${API}/api/dons/${id}`, { method: "DELETE" }); setDons(prev => prev.filter(d => d.id !== id)); } catch { alert("Erreur suppression don"); }
+  };
+  const handleStatutDon = async (don: Don, statut: string) => {
+    try {
+      await fetch(`${API}/api/dons/${don.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ statut }) });
+      setDons(prev => prev.map(d => d.id === don.id ? { ...d, statut } : d));
+    } catch { alert("Erreur mise à jour statut"); }
+  };
+
+  const donStats = useMemo(() => {
+    const recus = dons.filter(d => d.statut === "recu");
+    const total = recus.reduce((acc, d) => acc + (d.montant ?? 0), 0);
+    const moyenne = recus.length > 0 ? total / recus.length : 0;
+    return { total, moyenne, nb: dons.length, recus: recus.length, attente: dons.filter(d => d.statut === "en_attente").length };
+  }, [dons]);
 
   const stats = useMemo(() => {
     const active = responses.filter(r => !r.archived);
     const archived = responses.filter(r => r.archived);
     const oui = responses.filter(r => r.intention_vote === "Oui");
-    const dons = responses.filter(r => r.souhait_don);
+    const donsForm = responses.filter(r => r.souhait_don);
     const inscrits = responses.filter(r => r.inscrit_listes === "Oui");
     const parQuartier: Record<string, number> = {};
     const parIntention: Record<string, number> = {};
@@ -192,7 +207,7 @@ export default function AdminDashboard() {
       if (r.inscrit_listes) parInscrit[r.inscrit_listes] = (parInscrit[r.inscrit_listes] || 0) + 1;
       if (r.nom_benevole) parBenevole[r.nom_benevole] = (parBenevole[r.nom_benevole] || 0) + 1;
     });
-    return { active, archived, oui, dons, inscrits, parQuartier, parIntention, parInscrit, parBenevole };
+    return { active, archived, oui, dons: donsForm, inscrits, parQuartier, parIntention, parInscrit, parBenevole };
   }, [responses]);
 
   const quartiers = ["Tous", ...Array.from(new Set(responses.map(r => r.quartier).filter(Boolean) as string[]))];
@@ -200,11 +215,7 @@ export default function AdminDashboard() {
 
   const filtered = useMemo(() => responses.filter(r => {
     const s = search.toLowerCase();
-    const matchSearch =
-      (r.nom_benevole?.toLowerCase() ?? "").includes(s) ||
-      (r.quartier?.toLowerCase() ?? "").includes(s) ||
-      (r.intention_vote?.toLowerCase() ?? "").includes(s) ||
-      (r.email?.toLowerCase() ?? "").includes(s);
+    const matchSearch = (r.nom_benevole?.toLowerCase() ?? "").includes(s) || (r.quartier?.toLowerCase() ?? "").includes(s) || (r.intention_vote?.toLowerCase() ?? "").includes(s) || (r.email?.toLowerCase() ?? "").includes(s);
     const matchQ = filterQuartier === "Tous" || r.quartier === filterQuartier;
     const matchI = filterIntention === "Toutes" || r.intention_vote === filterIntention;
     const matchA = filterArchived === "all" || (filterArchived === "active" && !r.archived) || (filterArchived === "archived" && r.archived);
@@ -219,28 +230,23 @@ export default function AdminDashboard() {
     const rows = filtered.map(r => [r.id, r.date_visite ?? "", r.nom_benevole ?? "", r.adresse ?? "", r.quartier ?? "", r.email ?? "", r.intention_vote ?? "", r.inscrit_listes ?? "", r.souhait_don ? "Oui" : "Non", r.archived ? "Oui" : "Non"]);
     const csv = [headers, ...rows].map(row => row.join(";")).join("\n");
     const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a"); a.href = url;
-    a.download = `citizen13-${new Date().toISOString().slice(0, 10)}.csv`; a.click();
-    URL.revokeObjectURL(url);
+    const url = URL.createObjectURL(blob); const a = document.createElement("a"); a.href = url;
+    a.download = `citizen13-${new Date().toISOString().slice(0, 10)}.csv`; a.click(); URL.revokeObjectURL(url);
   };
 
   const tabStyle = (active: boolean): React.CSSProperties => ({
     padding: "9px 22px", borderRadius: "8px", fontWeight: "600", fontSize: "13px",
     cursor: "pointer", border: "none",
-    background: active ? C.g1 : C.white,
-    color: active ? C.white : C.text,
-    boxShadow: active ? "0 2px 8px rgba(26,107,46,0.3)" : "none",
-    transition: "all 0.2s",
+    background: active ? C.g1 : C.white, color: active ? C.white : C.text,
+    boxShadow: active ? "0 2px 8px rgba(26,107,46,0.3)" : "none", transition: "all 0.2s",
   });
-
   const inputStyle: React.CSSProperties = { padding: "8px 12px", border: `1px solid ${C.border}`, borderRadius: "8px", fontSize: "13px", color: C.text, background: C.white };
   const roleColors: Record<string, string> = { admin: C.g1, superviseur: C.g4, benevole: C.g3 };
 
   return (
     <div style={{ minHeight: "100vh", background: C.light, fontFamily: "'Segoe UI', sans-serif", color: C.text }}>
 
-      {/* ── Header ── */}
+      {/* Header */}
       <div style={{ background: GRADIENT, padding: "16px 32px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
           <img src="/logo.png" alt="Citizen13" style={{ height: "46px", filter: "brightness(0) invert(1)" }} />
@@ -250,20 +256,20 @@ export default function AdminDashboard() {
           <button onClick={() => window.open("/visit", "_blank")} style={hBtn}>➕ Nouvelle visite</button>
           <button onClick={exportCSV} style={hBtn}>⬇️ Export CSV</button>
           <button onClick={() => setShowTemplateModal(true)} style={hBtn}>📋 Templates</button>
+          <button onClick={() => navigate("/map")} style={hBtn}>🗺 Carte</button>
           <button onClick={() => { localStorage.removeItem("token"); localStorage.removeItem("role"); localStorage.removeItem("user"); window.location.href = "/login"; }} style={hBtn}>🚪 Déconnexion</button>
-        <button onClick={() => navigate("/map")} style={hBtn}>🗺 Carte</button>
         </div>
       </div>
 
-      {/* ── Contenu ── */}
       <div style={{ padding: "24px 32px" }}>
 
         {/* Tabs */}
-        <div style={{ display: "flex", gap: "8px", marginBottom: "24px", background: C.white, padding: "6px", borderRadius: "12px", width: "fit-content", boxShadow: "0 1px 4px rgba(0,0,0,0.06)" }}>
+        <div style={{ display: "flex", gap: "8px", marginBottom: "24px", background: C.white, padding: "6px", borderRadius: "12px", width: "fit-content", boxShadow: "0 1px 4px rgba(0,0,0,0.06)", flexWrap: "wrap" }}>
           <button style={tabStyle(activeTab === "stats")} onClick={() => setActiveTab("stats")}>📊 Statistiques</button>
           <button style={tabStyle(activeTab === "responses")} onClick={() => { setActiveTab("responses"); setFilterArchived("active"); }}>📋 Actives ({stats.active.length})</button>
           <button style={tabStyle(activeTab === "archive")} onClick={() => { setActiveTab("archive"); setFilterArchived("archived"); }}>🗂️ Archives ({stats.archived.length})</button>
           <button style={tabStyle(activeTab === "agents")} onClick={() => setActiveTab("agents")}>👥 Agents ({agents.length})</button>
+          <button style={tabStyle(activeTab === "dons")} onClick={() => setActiveTab("dons")}>💛 Dons ({dons.length})</button>
         </div>
 
         {/* ── STATS ── */}
@@ -284,8 +290,8 @@ export default function AdminDashboard() {
               <BarChart data={stats.parBenevole} title="Visites par bénévole" />
             </div>
             <div onClick={() => navigate("/map")} style={{ cursor: "pointer", background: C.white, borderRadius: "12px", padding: "16px", border: `2px dashed ${C.g1}`, textAlign: "center", color: C.g1, fontWeight: "700", fontSize: "14px" }}>
-  🗺 Voir la carte interactive des visites →
-</div>
+              🗺 Voir la carte interactive des visites →
+            </div>
           </div>
         )}
 
@@ -297,26 +303,17 @@ export default function AdminDashboard() {
               <select value={filterQuartier} onChange={e => { setFilterQuartier(e.target.value); setCurrentPage(1); }} style={inputStyle}>{quartiers.map(q => <option key={q}>{q}</option>)}</select>
               <select value={filterIntention} onChange={e => { setFilterIntention(e.target.value); setCurrentPage(1); }} style={inputStyle}>{intentions.map(i => <option key={i}>{i}</option>)}</select>
               <select value={filterArchived} onChange={e => { setFilterArchived(e.target.value as any); setCurrentPage(1); }} style={inputStyle}>
-                <option value="active">Actives</option>
-                <option value="archived">Archivées</option>
-                <option value="all">Toutes</option>
+                <option value="active">Actives</option><option value="archived">Archivées</option><option value="all">Toutes</option>
               </select>
               <span style={{ fontSize: "13px", color: C.muted }}>{filtered.length} résultat(s)</span>
               <button onClick={exportCSV} style={{ padding: "8px 14px", background: C.g1, color: "white", border: "none", borderRadius: "8px", cursor: "pointer", fontSize: "12px", fontWeight: "600" }}>⬇️ CSV</button>
             </div>
-
             {loading && <p style={{ textAlign: "center", color: C.muted }}>Chargement...</p>}
             {error && <p style={{ color: "#c00" }}>{error}</p>}
             {!loading && !error && (
               <div style={{ background: C.white, borderRadius: "12px", border: `1px solid ${C.border}`, overflow: "auto", boxShadow: "0 2px 8px rgba(0,0,0,0.05)" }}>
                 <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
-                  <thead>
-                    <tr style={{ background: GRADIENT }}>
-                      {["ID", "Date", "Bénévole", "Quartier", "Intention", "Inscrit", "Don", "Statut", "Actions"].map(h => (
-                        <th key={h} style={{ padding: "11px 13px", textAlign: "left", fontSize: "11px", fontWeight: "700", textTransform: "uppercase", letterSpacing: "0.5px", color: "white" }}>{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
+                  <thead><tr style={{ background: GRADIENT }}>{["ID", "Date", "Bénévole", "Quartier", "Intention", "Inscrit", "Don", "Statut", "Actions"].map(h => <th key={h} style={{ padding: "11px 13px", textAlign: "left", fontSize: "11px", fontWeight: "700", textTransform: "uppercase", letterSpacing: "0.5px", color: "white" }}>{h}</th>)}</tr></thead>
                   <tbody>
                     {paginated.length === 0 && <tr><td colSpan={9} style={{ textAlign: "center", padding: "32px", color: "#aaa" }}>Aucune réponse trouvée</td></tr>}
                     {paginated.map((r, i) => (
@@ -325,25 +322,11 @@ export default function AdminDashboard() {
                         <td style={tdS}>{r.date_visite ?? "—"}</td>
                         <td style={{ ...tdS, fontWeight: "600" }}>{r.nom_benevole ?? "—"}</td>
                         <td style={tdS}>{r.quartier ? <span style={{ background: "#e8f5ee", color: C.g1, padding: "2px 8px", borderRadius: "10px", fontSize: "11px", fontWeight: "600" }}>{r.quartier}</span> : "—"}</td>
-                        <td style={tdS}>
-                          <span style={{ padding: "2px 8px", borderRadius: "10px", fontSize: "11px", fontWeight: "600", background: r.intention_vote === "Oui" ? "#e8f5ee" : r.intention_vote === "Non" ? "#fdecea" : "#fef9e7", color: r.intention_vote === "Oui" ? C.g1 : r.intention_vote === "Non" ? "#b71c1c" : "#7d5a00" }}>
-                            {r.intention_vote ?? "—"}
-                          </span>
-                        </td>
+                        <td style={tdS}><span style={{ padding: "2px 8px", borderRadius: "10px", fontSize: "11px", fontWeight: "600", background: r.intention_vote === "Oui" ? "#e8f5ee" : r.intention_vote === "Non" ? "#fdecea" : "#fef9e7", color: r.intention_vote === "Oui" ? C.g1 : r.intention_vote === "Non" ? "#b71c1c" : "#7d5a00" }}>{r.intention_vote ?? "—"}</span></td>
                         <td style={tdS}>{r.inscrit_listes ?? "—"}</td>
                         <td style={tdS}>{r.souhait_don ? "💛" : "—"}</td>
-                        <td style={tdS}>
-                          <span style={{ padding: "2px 8px", borderRadius: "10px", fontSize: "11px", fontWeight: "600", background: r.archived ? "#eee" : "#e8f5ee", color: r.archived ? C.muted : C.g1 }}>
-                            {r.archived ? "Archivée" : "Active"}
-                          </span>
-                        </td>
-                        <td style={tdS}>
-                          <div style={{ display: "flex", gap: "5px" }}>
-                            <button onClick={() => setSelectedResponse(r)} style={btn(C.g4)}>👁</button>
-                            <button onClick={() => handleArchive(r.id, !r.archived)} style={btn(C.g3)}>{r.archived ? "↩" : "🗂"}</button>
-                            <button onClick={() => handleDelete(r.id)} style={btn("#b71c1c")}>🗑</button>
-                          </div>
-                        </td>
+                        <td style={tdS}><span style={{ padding: "2px 8px", borderRadius: "10px", fontSize: "11px", fontWeight: "600", background: r.archived ? "#eee" : "#e8f5ee", color: r.archived ? C.muted : C.g1 }}>{r.archived ? "Archivée" : "Active"}</span></td>
+                        <td style={tdS}><div style={{ display: "flex", gap: "5px" }}><button onClick={() => setSelectedResponse(r)} style={btn(C.g4)}>👁</button><button onClick={() => handleArchive(r.id, !r.archived)} style={btn(C.g3)}>{r.archived ? "↩" : "🗂"}</button><button onClick={() => handleDelete(r.id)} style={btn("#b71c1c")}>🗑</button></div></td>
                       </tr>
                     ))}
                   </tbody>
@@ -353,9 +336,7 @@ export default function AdminDashboard() {
             {totalPages > 1 && (
               <div style={{ display: "flex", justifyContent: "center", gap: "6px", marginTop: "16px", flexWrap: "wrap" }}>
                 <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} style={btn(C.g3)}>←</button>
-                {Array.from({ length: totalPages }).map((_, i) => (
-                  <button key={i} onClick={() => setCurrentPage(i + 1)} style={btn(currentPage === i + 1 ? C.g1 : "#ddd", currentPage === i + 1 ? "white" : C.text)}>{i + 1}</button>
-                ))}
+                {Array.from({ length: totalPages }).map((_, i) => <button key={i} onClick={() => setCurrentPage(i + 1)} style={btn(currentPage === i + 1 ? C.g1 : "#ddd", currentPage === i + 1 ? "white" : C.text)}>{i + 1}</button>)}
                 <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} style={btn(C.g3)}>→</button>
               </div>
             )}
@@ -367,20 +348,11 @@ export default function AdminDashboard() {
           <div>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
               <h2 style={{ margin: 0, fontSize: "18px", fontWeight: "800", color: C.text }}>👥 Gestion des agents</h2>
-              <button onClick={() => { setEditingAgent({ role: "benevole", actif: true }); setAgentPassword(""); setShowAgentModal(true); }} style={{ padding: "10px 20px", background: GRADIENT, color: "white", border: "none", borderRadius: "8px", cursor: "pointer", fontWeight: "700", fontSize: "13px" }}>
-                ➕ Nouvel agent
-              </button>
+              <button onClick={() => { setEditingAgent({ role: "benevole", actif: true }); setAgentPassword(""); setShowAgentModal(true); }} style={{ padding: "10px 20px", background: GRADIENT, color: "white", border: "none", borderRadius: "8px", cursor: "pointer", fontWeight: "700", fontSize: "13px" }}>➕ Nouvel agent</button>
             </div>
-
             <div style={{ background: C.white, borderRadius: "12px", border: `1px solid ${C.border}`, overflow: "auto", boxShadow: "0 2px 8px rgba(0,0,0,0.05)" }}>
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
-                <thead>
-                  <tr style={{ background: GRADIENT }}>
-                    {["ID", "Nom", "Email", "Téléphone", "Rôle", "Zone", "Statut", "Actions"].map(h => (
-                      <th key={h} style={{ padding: "11px 13px", textAlign: "left", fontSize: "11px", fontWeight: "700", textTransform: "uppercase", letterSpacing: "0.5px", color: "white" }}>{h}</th>
-                    ))}
-                  </tr>
-                </thead>
+                <thead><tr style={{ background: GRADIENT }}>{["ID", "Nom", "Email", "Téléphone", "Rôle", "Zone", "Statut", "Actions"].map(h => <th key={h} style={{ padding: "11px 13px", textAlign: "left", fontSize: "11px", fontWeight: "700", textTransform: "uppercase", letterSpacing: "0.5px", color: "white" }}>{h}</th>)}</tr></thead>
                 <tbody>
                   {agents.length === 0 && <tr><td colSpan={8} style={{ textAlign: "center", padding: "32px", color: "#aaa" }}>Aucun agent</td></tr>}
                   {agents.map((a, i) => (
@@ -389,24 +361,10 @@ export default function AdminDashboard() {
                       <td style={{ ...tdS, fontWeight: "600" }}>{a.prenom ? `${a.prenom} ${a.nom}` : a.nom}</td>
                       <td style={tdS}>{a.email ?? "—"}</td>
                       <td style={tdS}>{a.telephone ?? "—"}</td>
-                      <td style={tdS}>
-                        <span style={{ background: `${roleColors[a.role] ?? C.g3}22`, color: roleColors[a.role] ?? C.g3, padding: "2px 8px", borderRadius: "10px", fontSize: "11px", fontWeight: "700", textTransform: "capitalize" }}>
-                          {a.role}
-                        </span>
-                      </td>
+                      <td style={tdS}><span style={{ background: `${roleColors[a.role] ?? C.g3}22`, color: roleColors[a.role] ?? C.g3, padding: "2px 8px", borderRadius: "10px", fontSize: "11px", fontWeight: "700", textTransform: "capitalize" }}>{a.role}</span></td>
                       <td style={tdS}>{a.zone ?? "—"}</td>
-                      <td style={tdS}>
-                        <span style={{ padding: "2px 8px", borderRadius: "10px", fontSize: "11px", fontWeight: "600", background: a.actif ? "#e8f5ee" : "#eee", color: a.actif ? C.g1 : C.muted }}>
-                          {a.actif ? "Actif" : "Inactif"}
-                        </span>
-                      </td>
-                      <td style={tdS}>
-                        <div style={{ display: "flex", gap: "5px" }}>
-                          <button onClick={() => { setEditingAgent({ ...a }); setAgentPassword(""); setShowAgentModal(true); }} style={btn(C.g4)}>✏️</button>
-                          <button onClick={() => handleToggleAgent(a)} style={btn(a.actif ? C.g3 : C.g2)}>{a.actif ? "⏸" : "▶️"}</button>
-                          <button onClick={() => handleDeleteAgent(a.id)} style={btn("#b71c1c")}>🗑</button>
-                        </div>
-                      </td>
+                      <td style={tdS}><span style={{ padding: "2px 8px", borderRadius: "10px", fontSize: "11px", fontWeight: "600", background: a.actif ? "#e8f5ee" : "#eee", color: a.actif ? C.g1 : C.muted }}>{a.actif ? "Actif" : "Inactif"}</span></td>
+                      <td style={tdS}><div style={{ display: "flex", gap: "5px" }}><button onClick={() => { setEditingAgent({ ...a }); setAgentPassword(""); setShowAgentModal(true); }} style={btn(C.g4)}>✏️</button><button onClick={() => handleToggleAgent(a)} style={btn(a.actif ? C.g3 : C.g2)}>{a.actif ? "⏸" : "▶️"}</button><button onClick={() => handleDeleteAgent(a.id)} style={btn("#b71c1c")}>🗑</button></div></td>
                     </tr>
                   ))}
                 </tbody>
@@ -414,9 +372,60 @@ export default function AdminDashboard() {
             </div>
           </div>
         )}
+
+        {/* ── DONS ── */}
+        {activeTab === "dons" && (
+          <div>
+            {/* Stats dons */}
+            <div style={{ display: "flex", gap: "14px", flexWrap: "wrap", marginBottom: "24px" }}>
+              <StatCard label="Total collecté" value={`${donStats.total.toFixed(2)} €`} icon="💰" gradient={`linear-gradient(90deg, ${C.g1}, ${C.g2})`} />
+              <StatCard label="Nb dons" value={donStats.nb} icon="💛" gradient={`linear-gradient(90deg, ${C.g2}, ${C.g3})`} />
+              <StatCard label="Dons reçus" value={donStats.recus} icon="✅" gradient={`linear-gradient(90deg, ${C.g3}, ${C.g4})`} />
+              <StatCard label="En attente" value={donStats.attente} icon="⏳" gradient={`linear-gradient(90deg, ${C.g4}, ${C.g1})`} />
+              <StatCard label="Moyenne" value={`${donStats.moyenne.toFixed(2)} €`} icon="📊" gradient={`linear-gradient(90deg, ${C.g2}, ${C.g1})`} />
+            </div>
+
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
+              <h2 style={{ margin: 0, fontSize: "18px", fontWeight: "800", color: C.text }}>💛 Gestion des dons</h2>
+              <button onClick={() => { setEditingDon({ statut: "en_attente", type: "don" }); setShowDonModal(true); }} style={{ padding: "10px 20px", background: GRADIENT, color: "white", border: "none", borderRadius: "8px", cursor: "pointer", fontWeight: "700", fontSize: "13px" }}>➕ Nouveau don</button>
+            </div>
+
+            <div style={{ background: C.white, borderRadius: "12px", border: `1px solid ${C.border}`, overflow: "auto", boxShadow: "0 2px 8px rgba(0,0,0,0.05)" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
+                <thead><tr style={{ background: GRADIENT }}>{["ID", "Date", "Nom", "Email", "Montant", "Type", "Agent", "Statut", "Actions"].map(h => <th key={h} style={{ padding: "11px 13px", textAlign: "left", fontSize: "11px", fontWeight: "700", textTransform: "uppercase", letterSpacing: "0.5px", color: "white" }}>{h}</th>)}</tr></thead>
+                <tbody>
+                  {dons.length === 0 && <tr><td colSpan={9} style={{ textAlign: "center", padding: "32px", color: "#aaa" }}>Aucun don enregistré</td></tr>}
+                  {dons.map((d, i) => {
+                    const sc = STATUT_COLORS[d.statut] ?? STATUT_COLORS.en_attente;
+                    return (
+                      <tr key={d.id} style={{ background: i % 2 === 0 ? C.white : C.light, borderBottom: `1px solid ${C.border}` }}>
+                        <td style={tdS}><span style={{ fontWeight: "700", color: C.muted }}>#{d.id}</span></td>
+                        <td style={tdS}>{new Date(d.created_at).toLocaleDateString("fr-FR")}</td>
+                        <td style={{ ...tdS, fontWeight: "600" }}>{d.nom ?? "—"}</td>
+                        <td style={tdS}>{d.email ?? "—"}</td>
+                        <td style={tdS}><span style={{ fontWeight: "700", color: C.g1 }}>{d.montant != null ? `${d.montant} €` : "—"}</span></td>
+                        <td style={tdS}><span style={{ background: "#e8eef5", color: C.g4, padding: "2px 8px", borderRadius: "10px", fontSize: "11px", fontWeight: "600" }}>{d.type}</span></td>
+                        <td style={tdS}>{d.agent ? `${d.agent.prenom ?? ""} ${d.agent.nom}`.trim() : "—"}</td>
+                        <td style={tdS}>
+                          <select value={d.statut} onChange={e => handleStatutDon(d, e.target.value)}
+                            style={{ padding: "3px 8px", borderRadius: "8px", fontSize: "11px", fontWeight: "600", border: `1px solid ${sc.bg}`, background: sc.bg, color: sc.color, cursor: "pointer" }}>
+                            <option value="en_attente">⏳ En attente</option>
+                            <option value="recu">✅ Reçu</option>
+                            <option value="annule">❌ Annulé</option>
+                          </select>
+                        </td>
+                        <td style={tdS}><div style={{ display: "flex", gap: "5px" }}><button onClick={() => { setEditingDon({ ...d }); setShowDonModal(true); }} style={btn(C.g4)}>✏️</button><button onClick={() => handleDeleteDon(d.id)} style={btn("#b71c1c")}>🗑</button></div></td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* ── Modal Voir Réponse ── */}
+      {/* Modal Voir Réponse */}
       {selectedResponse && (
         <div style={backdrop}>
           <div style={{ background: C.white, borderRadius: "14px", width: "560px", maxWidth: "95vw", maxHeight: "85vh", overflow: "hidden", display: "flex", flexDirection: "column", boxShadow: "0 20px 60px rgba(0,0,0,0.25)" }}>
@@ -433,22 +442,8 @@ export default function AdminDashboard() {
                   </div>
                 ))}
               </div>
-              {selectedResponse.interets && selectedResponse.interets.length > 0 && (
-                <div style={{ marginTop: "14px" }}>
-                  <div style={{ fontSize: "10px", color: C.muted, textTransform: "uppercase", marginBottom: "6px" }}>Intérêts</div>
-                  <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
-                    {selectedResponse.interets.map((item: string) => <span key={item} style={{ background: "#e8f5ee", color: C.g1, padding: "3px 10px", borderRadius: "10px", fontSize: "12px", fontWeight: "600" }}>{item}</span>)}
-                  </div>
-                </div>
-              )}
-              {selectedResponse.themes_importants && selectedResponse.themes_importants.length > 0 && (
-                <div style={{ marginTop: "14px" }}>
-                  <div style={{ fontSize: "10px", color: C.muted, textTransform: "uppercase", marginBottom: "6px" }}>Thèmes importants</div>
-                  <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
-                    {selectedResponse.themes_importants.map((t: string) => <span key={t} style={{ background: "#e8eef5", color: C.g4, padding: "3px 10px", borderRadius: "10px", fontSize: "12px", fontWeight: "600" }}>{t}</span>)}
-                  </div>
-                </div>
-              )}
+              {(selectedResponse.interets ?? []).length > 0 && <div style={{ marginTop: "14px" }}><div style={{ fontSize: "10px", color: C.muted, textTransform: "uppercase", marginBottom: "6px" }}>Intérêts</div><div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>{(selectedResponse.interets ?? []).map((item: string) => <span key={item} style={{ background: "#e8f5ee", color: C.g1, padding: "3px 10px", borderRadius: "10px", fontSize: "12px", fontWeight: "600" }}>{item}</span>)}</div></div>}
+              {(selectedResponse.themes_importants ?? []).length > 0 && <div style={{ marginTop: "14px" }}><div style={{ fontSize: "10px", color: C.muted, textTransform: "uppercase", marginBottom: "6px" }}>Thèmes importants</div><div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>{(selectedResponse.themes_importants ?? []).map((t: string) => <span key={t} style={{ background: "#e8eef5", color: C.g4, padding: "3px 10px", borderRadius: "10px", fontSize: "12px", fontWeight: "600" }}>{t}</span>)}</div></div>}
             </div>
             <div style={{ padding: "14px 24px", borderTop: `1px solid ${C.border}` }}>
               <button onClick={() => setSelectedResponse(null)} style={{ width: "100%", padding: "10px", background: GRADIENT, color: "white", border: "none", borderRadius: "8px", cursor: "pointer", fontWeight: "700" }}>Fermer</button>
@@ -457,19 +452,70 @@ export default function AdminDashboard() {
         </div>
       )}
 
-      {/* ── Modal Agent ── */}
+      {/* Modal Don */}
+      {showDonModal && editingDon && (
+        <div style={backdrop}>
+          <div style={{ background: C.white, borderRadius: "14px", padding: "24px", width: "480px", maxWidth: "95vw", maxHeight: "85vh", overflowY: "auto", boxShadow: "0 20px 60px rgba(0,0,0,0.25)" }}>
+            <h2 style={{ margin: "0 0 20px", fontSize: "17px", fontWeight: "800", color: C.text }}>{editingDon.id ? "✏️ Modifier le don" : "➕ Nouveau don"}</h2>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+              {[["Nom du donateur", "nom", "text"], ["Email", "email", "email"], ["Montant (€)", "montant", "number"]].map(([label, field, type]) => (
+                <div key={field}>
+                  <label style={{ fontSize: "11px", color: C.muted, textTransform: "uppercase", fontWeight: "600" }}>{label}</label>
+                  <input type={type} value={(editingDon as any)[field] ?? ""}
+                    onChange={e => setEditingDon({ ...editingDon, [field]: type === "number" ? parseFloat(e.target.value) : e.target.value })}
+                    style={{ display: "block", width: "100%", padding: "8px 12px", border: `1px solid ${C.border}`, borderRadius: "8px", marginTop: "4px", fontSize: "13px", boxSizing: "border-box", color: C.text }} />
+                </div>
+              ))}
+              <div>
+                <label style={{ fontSize: "11px", color: C.muted, textTransform: "uppercase", fontWeight: "600" }}>Type</label>
+                <select value={editingDon.type ?? "don"} onChange={e => setEditingDon({ ...editingDon, type: e.target.value })}
+                  style={{ display: "block", width: "100%", padding: "8px 12px", border: `1px solid ${C.border}`, borderRadius: "8px", marginTop: "4px", fontSize: "13px", color: C.text }}>
+                  <option value="don">Don</option>
+                  <option value="adhesion">Adhésion</option>
+                  <option value="autre">Autre</option>
+                </select>
+              </div>
+              <div>
+                <label style={{ fontSize: "11px", color: C.muted, textTransform: "uppercase", fontWeight: "600" }}>Statut</label>
+                <select value={editingDon.statut ?? "en_attente"} onChange={e => setEditingDon({ ...editingDon, statut: e.target.value })}
+                  style={{ display: "block", width: "100%", padding: "8px 12px", border: `1px solid ${C.border}`, borderRadius: "8px", marginTop: "4px", fontSize: "13px", color: C.text }}>
+                  <option value="en_attente">⏳ En attente</option>
+                  <option value="recu">✅ Reçu</option>
+                  <option value="annule">❌ Annulé</option>
+                </select>
+              </div>
+              <div>
+                <label style={{ fontSize: "11px", color: C.muted, textTransform: "uppercase", fontWeight: "600" }}>Agent lié</label>
+                <select value={editingDon.agent_id ?? ""} onChange={e => setEditingDon({ ...editingDon, agent_id: e.target.value ? parseInt(e.target.value) : undefined })}
+                  style={{ display: "block", width: "100%", padding: "8px 12px", border: `1px solid ${C.border}`, borderRadius: "8px", marginTop: "4px", fontSize: "13px", color: C.text }}>
+                  <option value="">— Aucun —</option>
+                  {agents.map(a => <option key={a.id} value={a.id}>{a.prenom ? `${a.prenom} ${a.nom}` : a.nom}</option>)}
+                </select>
+              </div>
+              <div style={{ gridColumn: "1 / -1" }}>
+                <label style={{ fontSize: "11px", color: C.muted, textTransform: "uppercase", fontWeight: "600" }}>Notes</label>
+                <textarea value={editingDon.notes ?? ""} onChange={e => setEditingDon({ ...editingDon, notes: e.target.value })} rows={3}
+                  style={{ display: "block", width: "100%", padding: "8px 12px", border: `1px solid ${C.border}`, borderRadius: "8px", marginTop: "4px", fontSize: "13px", boxSizing: "border-box", color: C.text, resize: "vertical" }} />
+              </div>
+            </div>
+            <div style={{ display: "flex", gap: "8px", marginTop: "20px" }}>
+              <button onClick={handleSaveDon} style={{ flex: 1, padding: "10px", background: GRADIENT, color: "white", border: "none", borderRadius: "8px", cursor: "pointer", fontWeight: "700" }}>✅ Sauvegarder</button>
+              <button onClick={() => { setShowDonModal(false); setEditingDon(null); }} style={{ flex: 1, padding: "10px", background: C.g4, color: "white", border: "none", borderRadius: "8px", cursor: "pointer", fontWeight: "700" }}>Annuler</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Agent */}
       {showAgentModal && editingAgent && (
         <div style={backdrop}>
           <div style={{ background: C.white, borderRadius: "14px", padding: "24px", width: "500px", maxWidth: "95vw", maxHeight: "85vh", overflowY: "auto", boxShadow: "0 20px 60px rgba(0,0,0,0.25)" }}>
-            <h2 style={{ margin: "0 0 20px", fontSize: "17px", fontWeight: "800", color: C.text }}>
-              {editingAgent.id ? "✏️ Modifier l'agent" : "➕ Nouvel agent"}
-            </h2>
+            <h2 style={{ margin: "0 0 20px", fontSize: "17px", fontWeight: "800", color: C.text }}>{editingAgent.id ? "✏️ Modifier l'agent" : "➕ Nouvel agent"}</h2>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
               {[["Nom *", "nom", "text"], ["Prénom", "prenom", "text"], ["Email", "email", "email"], ["Téléphone", "telephone", "text"], ["Zone", "zone", "text"]].map(([label, field, type]) => (
                 <div key={field}>
                   <label style={{ fontSize: "11px", color: C.muted, textTransform: "uppercase", fontWeight: "600" }}>{label}</label>
-                  <input type={type} value={(editingAgent as any)[field] ?? ""}
-                    onChange={e => setEditingAgent({ ...editingAgent, [field]: e.target.value })}
+                  <input type={type} value={(editingAgent as any)[field] ?? ""} onChange={e => setEditingAgent({ ...editingAgent, [field]: e.target.value })}
                     style={{ display: "block", width: "100%", padding: "8px 12px", border: `1px solid ${C.border}`, borderRadius: "8px", marginTop: "4px", fontSize: "13px", boxSizing: "border-box", color: C.text }} />
                 </div>
               ))}
@@ -477,9 +523,7 @@ export default function AdminDashboard() {
                 <label style={{ fontSize: "11px", color: C.muted, textTransform: "uppercase", fontWeight: "600" }}>Rôle</label>
                 <select value={editingAgent.role ?? "benevole"} onChange={e => setEditingAgent({ ...editingAgent, role: e.target.value })}
                   style={{ display: "block", width: "100%", padding: "8px 12px", border: `1px solid ${C.border}`, borderRadius: "8px", marginTop: "4px", fontSize: "13px", color: C.text }}>
-                  <option value="benevole">Bénévole</option>
-                  <option value="superviseur">Superviseur</option>
-                  <option value="admin">Admin</option>
+                  <option value="benevole">Bénévole</option><option value="superviseur">Superviseur</option><option value="admin">Admin</option>
                 </select>
               </div>
               <div>
@@ -496,7 +540,7 @@ export default function AdminDashboard() {
         </div>
       )}
 
-      {/* ── Modal Templates ── */}
+      {/* Modal Templates */}
       {showTemplateModal && (
         <div style={backdrop}>
           <div style={{ background: C.white, borderRadius: "14px", padding: "24px", width: "500px", maxWidth: "95vw", maxHeight: "85vh", overflowY: "auto" }}>
@@ -512,7 +556,7 @@ export default function AdminDashboard() {
         </div>
       )}
 
-      {/* ── Modal Edit Template ── */}
+      {/* Modal Edit Template */}
       {selectedTemplate && (
         <div style={backdrop}>
           <div style={{ background: C.white, borderRadius: "14px", padding: "24px", width: "500px", maxWidth: "95vw", maxHeight: "85vh", overflowY: "auto" }}>

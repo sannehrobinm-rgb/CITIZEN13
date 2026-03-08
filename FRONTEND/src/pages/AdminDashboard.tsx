@@ -101,6 +101,9 @@ export default function AdminDashboard() {
   const [showDonModal, setShowDonModal] = useState(false);
   const [editingDon, setEditingDon] = useState<Partial<Don> | null>(null);
 
+  // Invitation mail
+  const [invitingAgent, setInvitingAgent] = useState<number | null>(null);
+
   const fetchResponses = async () => {
     try {
       setLoading(true);
@@ -158,6 +161,23 @@ export default function AdminDashboard() {
       await fetch(`${API}/api/agents/${agent.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ actif: !agent.actif }) });
       setAgents(prev => prev.map(a => a.id === agent.id ? { ...a, actif: !a.actif } : a));
     } catch { alert("Erreur mise à jour"); }
+  };
+
+  const handleInviteAgent = async (agent: Agent) => {
+    if (!agent.email) { alert("Cet agent n'a pas d'email renseigné."); return; }
+    if (!window.confirm(`Envoyer le lien d'accès à ${agent.email} ?`)) return;
+    setInvitingAgent(agent.id);
+    try {
+      const res = await fetch(`${API}/api/agents/invite`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: agent.email, nom: agent.nom, prenom: agent.prenom, password: "admin000" }),
+      });
+      const data = await res.json();
+      if (data.success) alert(`✅ Invitation envoyée à ${agent.email}`);
+      else alert("❌ Erreur lors de l'envoi du mail");
+    } catch { alert("Erreur réseau"); }
+    finally { setInvitingAgent(null); }
   };
 
   // ── Dons CRUD ──
@@ -364,7 +384,7 @@ export default function AdminDashboard() {
                       <td style={tdS}><span style={{ background: `${roleColors[a.role] ?? C.g3}22`, color: roleColors[a.role] ?? C.g3, padding: "2px 8px", borderRadius: "10px", fontSize: "11px", fontWeight: "700", textTransform: "capitalize" }}>{a.role}</span></td>
                       <td style={tdS}>{a.zone ?? "—"}</td>
                       <td style={tdS}><span style={{ padding: "2px 8px", borderRadius: "10px", fontSize: "11px", fontWeight: "600", background: a.actif ? "#e8f5ee" : "#eee", color: a.actif ? C.g1 : C.muted }}>{a.actif ? "Actif" : "Inactif"}</span></td>
-                      <td style={tdS}><div style={{ display: "flex", gap: "5px" }}><button onClick={() => { setEditingAgent({ ...a }); setAgentPassword(""); setShowAgentModal(true); }} style={btn(C.g4)}>✏️</button><button onClick={() => handleToggleAgent(a)} style={btn(a.actif ? C.g3 : C.g2)}>{a.actif ? "⏸" : "▶️"}</button><button onClick={() => handleDeleteAgent(a.id)} style={btn("#b71c1c")}>🗑</button></div></td>
+                      <td style={tdS}><div style={{ display: "flex", gap: "5px" }}><button onClick={() => { setEditingAgent({ ...a }); setAgentPassword(""); setShowAgentModal(true); }} style={btn(C.g4)}>✏️</button><button onClick={() => handleToggleAgent(a)} style={btn(a.actif ? C.g3 : C.g2)}>{a.actif ? "⏸" : "▶️"}</button><button onClick={() => handleInviteAgent(a)} disabled={invitingAgent === a.id} style={btn("#e67e22")} title="Envoyer invitation par mail">{invitingAgent === a.id ? "⏳" : "📧"}</button><button onClick={() => handleDeleteAgent(a.id)} style={btn("#b71c1c")}>🗑</button></div></td>
                     </tr>
                   ))}
                 </tbody>

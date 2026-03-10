@@ -12,16 +12,9 @@ export default function App() {
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/login" element={<Login />} />
-        <Route path="/visit" element={
-          <ProtectedRoute>
-            <Visit />
-          </ProtectedRoute>
-        } />
-        <Route path="/admin" element={
-          <ProtectedRoute roles={["admin", "superviseur"]}>
-            <AdminDashboard />
-          </ProtectedRoute>
-        } /><Route path="/map" element={<ProtectedRoute roles={["admin", "superviseur"]}><MapPage /></ProtectedRoute>} />
+        <Route path="/visit" element={<ProtectedRoute><Visit /></ProtectedRoute>} />
+        <Route path="/admin" element={<ProtectedRoute roles={["admin", "superviseur"]}><AdminDashboard /></ProtectedRoute>} />
+        <Route path="/map" element={<ProtectedRoute roles={["admin", "superviseur"]}><MapPage /></ProtectedRoute>} />
       </Routes>
     </BrowserRouter>
   );

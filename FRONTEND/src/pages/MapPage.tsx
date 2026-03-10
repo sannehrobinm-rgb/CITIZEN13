@@ -11,7 +11,6 @@ const C = {
 const GRADIENT = `linear-gradient(135deg, ${C.g1} 0%, ${C.g3} 50%, ${C.g4} 100%)`;
 const API = "http://localhost:3000";
 
-// Quartiers du 13ème arrondissement de Paris
 const QUARTIER_COORDS: Record<string, [number, number]> = {
   "Salpêtrière": [48.8394, 2.3567],
   "Gare": [48.8389, 2.3651],
@@ -36,6 +35,11 @@ const QUARTIER_COORDS: Record<string, [number, number]> = {
   "Paris Rive Gauche": [48.8320, 2.3750],
   "Chevaleret": [48.8350, 2.3740],
   "Bibliothèque François-Mitterrand": [48.8338, 2.3775],
+  "Austerlitz": [48.8430, 2.3665],
+  "Périchaux": [48.8260, 2.3540],
+  "BnF": [48.8338, 2.3775],
+  "Jeanne d'Arc": [48.8310, 2.3670],
+  "Gobelins": [48.8340, 2.3530],
 };
 
 interface FormResponse {
@@ -48,6 +52,14 @@ interface FormResponse {
   inscrit_listes?: string;
   souhait_don?: boolean;
 }
+interface Boitage {
+  id: number; quartier: string; adresse?: string; nb_tracts: number;
+  nb_boites: number; nom_benevole?: string; date: string; commentaire?: string;
+}
+interface Tractage {
+  id: number; quartier: string; adresse?: string; nb_tracts: number;
+  nb_portes: number; nom_benevole?: string; date: string; commentaire?: string;
+}
 
 function getColor(count: number, max: number): string {
   if (max === 0 || count === 0) return "#e8f5ee";
@@ -59,32 +71,38 @@ function getColor(count: number, max: number): string {
   return "#a8d5bc";
 }
 
+type LayerMode = "visites" | "boitage" | "tractage" | "tous";
+
 export default function MapPage() {
   const navigate = useNavigate();
   const mapRef = useRef<L.Map | null>(null);
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const markersRef = useRef<L.LayerGroup | null>(null);
   const [responses, setResponses] = useState<FormResponse[]>([]);
+  const [boitages, setBoitages] = useState<Boitage[]>([]);
+  const [tractages, setTractages] = useState<Tractage[]>([]);
   const [loading, setLoading] = useState(true);
   const [filterBenevole, setFilterBenevole] = useState("Tous");
   const [filterIntention, setFilterIntention] = useState("Toutes");
   const [selectedQuartier, setSelectedQuartier] = useState<string | null>(null);
+  const [layerMode, setLayerMode] = useState<LayerMode>("tous");
 
   useEffect(() => {
-    fetch(`${API}/api/admin/forms/responses`)
-      .then(r => r.json())
-      .then(data => { setResponses(Array.isArray(data) ? data : []); setLoading(false); })
-      .catch(() => setLoading(false));
+    Promise.all([
+      fetch(`${API}/api/admin/forms/responses`).then(r => r.json()),
+      fetch(`${API}/api/boitage`).then(r => r.json()),
+      fetch(`${API}/api/tractage`).then(r => r.json()),
+    ]).then(([forms, boit, prosp]) => {
+      setResponses(Array.isArray(forms) ? forms : []);
+      setBoitages(Array.isArray(boit) ? boit : []);
+      setTractages(Array.isArray(prosp) ? prosp : []);
+      setLoading(false);
+    }).catch(() => setLoading(false));
   }, []);
 
-  // Init map centrée sur le 13ème arrondissement de Paris
   useEffect(() => {
     if (!mapContainerRef.current || mapRef.current) return;
-    const map = L.map(mapContainerRef.current, {
-      center: [48.8280, 2.3620],
-      zoom: 14,
-      zoomControl: true,
-    });
+    const map = L.map(mapContainerRef.current, { center: [48.8280, 2.3620], zoom: 14, zoomControl: true });
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
       attribution: '© <a href="https://www.openstreetmap.org/">OpenStreetMap</a>',
       maxZoom: 19,
@@ -94,112 +112,159 @@ export default function MapPage() {
     return () => { map.remove(); mapRef.current = null; };
   }, []);
 
-  // Update cercles et markers
   useEffect(() => {
     if (!mapRef.current || !markersRef.current) return;
     markersRef.current.clearLayers();
 
-    const filtered = responses.filter(r => {
-      const matchB = filterBenevole === "Tous" || r.nom_benevole === filterBenevole;
-      const matchI = filterIntention === "Toutes" || r.intention_vote === filterIntention;
-      return matchB && matchI;
-    });
-
-    const counts: Record<string, FormResponse[]> = {};
-    filtered.forEach(r => {
-      if (r.quartier) {
-        if (!counts[r.quartier]) counts[r.quartier] = [];
-        counts[r.quartier].push(r);
-      }
-    });
-
-    const max = Math.max(...Object.values(counts).map(v => v.length), 1);
-
-    Object.entries(counts).forEach(([quartier, items]) => {
-      const coords = QUARTIER_COORDS[quartier];
-      if (!coords) return;
-      const color = getColor(items.length, max);
-      const radius = 120 + (items.length / max) * 280;
-
-      const circle = L.circle(coords, {
-        radius,
-        fillColor: color,
-        fillOpacity: 0.65,
-        color: color,
-        weight: 2,
+    // ── Visites (cercles verts) ──
+    if (layerMode === "visites" || layerMode === "tous") {
+      const filtered = responses.filter(r => {
+        const matchB = filterBenevole === "Tous" || r.nom_benevole === filterBenevole;
+        const matchI = filterIntention === "Toutes" || r.intention_vote === filterIntention;
+        return matchB && matchI;
       });
-
-      const popupContent = `
-        <div style="font-family:'Segoe UI',sans-serif;min-width:190px">
-          <div style="background:${GRADIENT};color:white;padding:8px 12px;border-radius:6px 6px 0 0;font-weight:700;font-size:14px">
-            📍 ${quartier}
-          </div>
-          <div style="padding:10px 12px;background:#f9f9f9;border-radius:0 0 6px 6px">
-            <div style="font-size:13px;color:#111;margin-bottom:6px"><b>${items.length}</b> visite${items.length > 1 ? "s" : ""}</div>
-            <div style="font-size:12px;color:#555">🗳 Vote Oui : <b>${items.filter(i => i.intention_vote === "Oui").length}</b></div>
-            <div style="font-size:12px;color:#555">📝 Inscrits : <b>${items.filter(i => i.inscrit_listes === "Oui").length}</b></div>
-            <div style="font-size:12px;color:#555">💛 Dons : <b>${items.filter(i => i.souhait_don).length}</b></div>
-            <hr style="border:none;border-top:1px solid #ddd;margin:6px 0"/>
-            ${items.slice(0, 3).map(i => `<div style="font-size:11px;color:#777">• ${i.nom_benevole ?? "—"} (${i.date_visite ?? "—"})</div>`).join("")}
-            ${items.length > 3 ? `<div style="font-size:11px;color:#aaa">+${items.length - 3} autres...</div>` : ""}
-          </div>
-        </div>
-      `;
-
-      circle.bindPopup(popupContent, { maxWidth: 260 });
-      circle.on("click", () => setSelectedQuartier(quartier));
-      markersRef.current!.addLayer(circle);
-
-      // Badge numérique centré
-      const icon = L.divIcon({
-        html: `<div style="background:white;border:2px solid ${color};border-radius:50%;width:26px;height:26px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:${color};box-shadow:0 1px 4px rgba(0,0,0,0.2)">${items.length}</div>`,
-        className: "",
-        iconAnchor: [13, 13],
+      const counts: Record<string, FormResponse[]> = {};
+      filtered.forEach(r => { if (r.quartier) { if (!counts[r.quartier]) counts[r.quartier] = []; counts[r.quartier].push(r); } });
+      const max = Math.max(...Object.values(counts).map(v => v.length), 1);
+      Object.entries(counts).forEach(([quartier, items]) => {
+        const coords = QUARTIER_COORDS[quartier]; if (!coords) return;
+        const color = getColor(items.length, max);
+        const radius = 120 + (items.length / max) * 280;
+        const circle = L.circle(coords, { radius, fillColor: color, fillOpacity: 0.65, color, weight: 2 });
+        circle.bindPopup(`
+          <div style="font-family:'Segoe UI',sans-serif;min-width:190px">
+            <div style="background:${GRADIENT};color:white;padding:8px 12px;border-radius:6px 6px 0 0;font-weight:700;font-size:14px">📍 ${quartier}</div>
+            <div style="padding:10px 12px;background:#f9f9f9;border-radius:0 0 6px 6px">
+              <div style="font-size:13px;color:#111;margin-bottom:6px"><b>${items.length}</b> visite${items.length > 1 ? "s" : ""}</div>
+              <div style="font-size:12px;color:#555">🗳 Vote Oui : <b>${items.filter(i => i.intention_vote === "Oui").length}</b></div>
+              <div style="font-size:12px;color:#555">📝 Inscrits : <b>${items.filter(i => i.inscrit_listes === "Oui").length}</b></div>
+              <div style="font-size:12px;color:#555">💛 Dons : <b>${items.filter(i => i.souhait_don).length}</b></div>
+            </div>
+          </div>`, { maxWidth: 260 });
+        circle.on("click", () => setSelectedQuartier(quartier));
+        markersRef.current!.addLayer(circle);
+        const icon = L.divIcon({
+          html: `<div style="background:white;border:2px solid ${color};border-radius:50%;width:26px;height:26px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:${color};box-shadow:0 1px 4px rgba(0,0,0,0.2)">${items.length}</div>`,
+          className: "", iconAnchor: [13, 13],
+        });
+        L.marker(coords, { icon }).addTo(markersRef.current!);
       });
-      L.marker(coords, { icon }).addTo(markersRef.current!);
-    });
-  }, [responses, filterBenevole, filterIntention]);
+    }
+
+    // ── Boîtage (marqueurs bleus 📬) ──
+    if (layerMode === "boitage" || layerMode === "tous") {
+      const counts: Record<string, Boitage[]> = {};
+      boitages.forEach(b => { if (b.quartier) { if (!counts[b.quartier]) counts[b.quartier] = []; counts[b.quartier].push(b); } });
+      Object.entries(counts).forEach(([quartier, items]) => {
+        const coords = QUARTIER_COORDS[quartier];
+        if (!coords) return;
+        const offset: [number, number] = [coords[0] + 0.002, coords[1] - 0.002];
+        const totalTracts = items.reduce((s, b) => s + b.nb_tracts, 0);
+        const totalBoites = items.reduce((s, b) => s + b.nb_boites, 0);
+        const icon = L.divIcon({
+          html: `<div style="background:#1a3a6b;color:white;border-radius:10px;padding:4px 8px;font-size:11px;font-weight:700;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,0.3)">📬 ${items.length}</div>`,
+          className: "", iconAnchor: [20, 15],
+        });
+        const marker = L.marker(offset, { icon });
+        marker.bindPopup(`
+          <div style="font-family:'Segoe UI',sans-serif;min-width:180px">
+            <div style="background:#1a3a6b;color:white;padding:8px 12px;border-radius:6px 6px 0 0;font-weight:700;font-size:14px">📬 Boîtage — ${quartier}</div>
+            <div style="padding:10px 12px;background:#f9f9f9;border-radius:0 0 6px 6px">
+              <div style="font-size:13px;color:#111;margin-bottom:4px"><b>${items.length}</b> session${items.length > 1 ? "s" : ""}</div>
+              <div style="font-size:12px;color:#555">📄 Tracts : <b>${totalTracts}</b></div>
+              <div style="font-size:12px;color:#555">📬 Boîtes : <b>${totalBoites}</b></div>
+              <hr style="border:none;border-top:1px solid #ddd;margin:6px 0"/>
+              ${items.slice(0, 3).map(i => `<div style="font-size:11px;color:#777">• ${i.nom_benevole ?? "—"} (${i.date})</div>`).join("")}
+            </div>
+          </div>`, { maxWidth: 240 });
+        markersRef.current!.addLayer(marker);
+      });
+    }
+
+    // ── Tractage (marqueurs oranges 🚪) ──
+    if (layerMode === "tractage" || layerMode === "tous") {
+      const counts: Record<string, Tractage[]> = {};
+      tractages.forEach(p => { if (p.quartier) { if (!counts[p.quartier]) counts[p.quartier] = []; counts[p.quartier].push(p); } });
+      Object.entries(counts).forEach(([quartier, items]) => {
+        const coords = QUARTIER_COORDS[quartier];
+        if (!coords) return;
+        const offset: [number, number] = [coords[0] - 0.002, coords[1] + 0.002];
+        const totalPortes = items.reduce((s, p) => s + p.nb_portes, 0);
+        const totalTracts = items.reduce((s, p) => s + p.nb_tracts, 0);
+        const icon = L.divIcon({
+          html: `<div style="background:#c97a00;color:white;border-radius:10px;padding:4px 8px;font-size:11px;font-weight:700;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,0.3)">🚪 ${items.length}</div>`,
+          className: "", iconAnchor: [20, 15],
+        });
+        const marker = L.marker(offset, { icon });
+        marker.bindPopup(`
+          <div style="font-family:'Segoe UI',sans-serif;min-width:180px">
+            <div style="background:#c97a00;color:white;padding:8px 12px;border-radius:6px 6px 0 0;font-weight:700;font-size:14px">🚪 Tractage — ${quartier}</div>
+            <div style="padding:10px 12px;background:#f9f9f9;border-radius:0 0 6px 6px">
+              <div style="font-size:13px;color:#111;margin-bottom:4px"><b>${items.length}</b> session${items.length > 1 ? "s" : ""}</div>
+              <div style="font-size:12px;color:#555">📄 Tracts : <b>${totalTracts}</b></div>
+              <div style="font-size:12px;color:#555">🚪 Portes : <b>${totalPortes}</b></div>
+              <hr style="border:none;border-top:1px solid #ddd;margin:6px 0"/>
+              ${items.slice(0, 3).map(i => `<div style="font-size:11px;color:#777">• ${i.nom_benevole ?? "—"} (${i.date})</div>`).join("")}
+            </div>
+          </div>`, { maxWidth: 240 });
+        markersRef.current!.addLayer(marker);
+      });
+    }
+  }, [responses, boitages, tractages, filterBenevole, filterIntention, layerMode]);
 
   const filtered = responses.filter(r => {
     const matchB = filterBenevole === "Tous" || r.nom_benevole === filterBenevole;
     const matchI = filterIntention === "Toutes" || r.intention_vote === filterIntention;
     return matchB && matchI;
   });
-
   const counts: Record<string, number> = {};
   filtered.forEach(r => { if (r.quartier) counts[r.quartier] = (counts[r.quartier] || 0) + 1; });
   const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]);
   const max = Math.max(...sorted.map(s => s[1]), 1);
-
   const benevoles = ["Tous", ...Array.from(new Set(responses.map(r => r.nom_benevole).filter(Boolean) as string[]))];
   const intentions = ["Toutes", ...Array.from(new Set(responses.map(r => r.intention_vote).filter(Boolean) as string[]))];
   const selectedItems = selectedQuartier ? responses.filter(r => r.quartier === selectedQuartier) : [];
 
+  const layerBtn = (mode: LayerMode, label: string, color: string) => (
+    <button onClick={() => setLayerMode(mode)} style={{
+      padding: "5px 10px", borderRadius: "7px", fontSize: "12px", fontWeight: "600", cursor: "pointer", border: "none",
+      background: layerMode === mode ? color : C.light, color: layerMode === mode ? "white" : C.text,
+      transition: "all 0.15s",
+    }}>{label}</button>
+  );
+
   return (
     <div style={{ minHeight: "100vh", background: C.light, fontFamily: "'Segoe UI', sans-serif" }}>
-
-      {/* Header */}
       <div style={{ background: GRADIENT, padding: "14px 28px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
-          <img src="/logo.png" alt="Citizen13" style={{ height: "40px", filter: "brightness(0) invert(1)" }} />
+          <img src="/logo.png" alt="Citizen13" style={{ height: "40px"}} onError={e => (e.currentTarget.style.display = "none")} />
           <span style={{ color: "rgba(255,255,255,0.85)", fontSize: "12px", letterSpacing: "0.1em", textTransform: "uppercase", fontWeight: "500" }}>
-            Carte des visites — Paris 13ème
+            Carte des actions — Paris 13ème
           </span>
         </div>
-        <button onClick={() => navigate("/admin")}
-          style={{ padding: "7px 16px", background: "rgba(255,255,255,0.15)", color: "white", border: "1px solid rgba(255,255,255,0.3)", borderRadius: "8px", cursor: "pointer", fontSize: "13px" }}>
+        <button onClick={() => navigate("/admin")} style={{ padding: "7px 16px", background: "rgba(255,255,255,0.15)", color: "white", border: "1px solid rgba(255,255,255,0.3)", borderRadius: "8px", cursor: "pointer", fontSize: "13px" }}>
           ← Dashboard
         </button>
       </div>
 
       <div style={{ display: "flex", height: "calc(100vh - 64px)" }}>
-
         {/* Sidebar */}
         <div style={{ width: "290px", background: C.white, borderRight: `1px solid ${C.border}`, display: "flex", flexDirection: "column", overflow: "hidden" }}>
 
-          {/* Filtres */}
-          <div style={{ padding: "16px", borderBottom: `1px solid ${C.border}` }}>
-            <h3 style={{ margin: "0 0 10px", fontSize: "12px", fontWeight: "700", color: C.text, textTransform: "uppercase", letterSpacing: "0.05em" }}>Filtres</h3>
+          {/* Couches */}
+          <div style={{ padding: "12px 16px", borderBottom: `1px solid ${C.border}` }}>
+            <h3 style={{ margin: "0 0 8px", fontSize: "12px", fontWeight: "700", color: C.text, textTransform: "uppercase", letterSpacing: "0.05em" }}>Afficher</h3>
+            <div style={{ display: "flex", gap: "5px", flexWrap: "wrap" }}>
+              {layerBtn("tous", "🗺 Tout", C.g1)}
+              {layerBtn("visites", "🏠 Visites", C.g1)}
+              {layerBtn("boitage", "📬 Boîtage", "#1a3a6b")}
+              {layerBtn("tractage", "🚪 Prosp.", "#c97a00")}
+            </div>
+          </div>
+
+          {/* Filtres visites */}
+          <div style={{ padding: "12px 16px", borderBottom: `1px solid ${C.border}` }}>
+            <h3 style={{ margin: "0 0 10px", fontSize: "12px", fontWeight: "700", color: C.text, textTransform: "uppercase", letterSpacing: "0.05em" }}>Filtres visites</h3>
             <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
               <select value={filterBenevole} onChange={e => setFilterBenevole(e.target.value)}
                 style={{ padding: "7px 10px", border: `1px solid ${C.border}`, borderRadius: "7px", fontSize: "13px", color: C.text }}>
@@ -210,34 +275,37 @@ export default function MapPage() {
                 {intentions.map(i => <option key={i}>{i}</option>)}
               </select>
             </div>
-            <div style={{ marginTop: "8px", fontSize: "12px", color: C.muted }}>{filtered.length} visite(s) affichée(s)</div>
+            <div style={{ marginTop: "8px", fontSize: "12px", color: C.muted }}>{filtered.length} visite(s) · {boitages.length} boîtage(s) · {tractages.length} prosp.</div>
           </div>
 
-          {/* Légende densité */}
+          {/* Légende */}
           <div style={{ padding: "12px 16px", borderBottom: `1px solid ${C.border}` }}>
-            <h3 style={{ margin: "0 0 8px", fontSize: "12px", fontWeight: "700", color: C.text, textTransform: "uppercase" }}>Densité</h3>
-            <div style={{ display: "flex", gap: "3px" }}>
-              {["#e8f5ee", "#a8d5bc", "#4a9a7a", "#1a7a6b", "#2d8a4e", "#1a6b2e"].map((c, i) => (
-                <div key={i} style={{ flex: 1, height: "14px", background: c, borderRadius: "2px" }} />
-              ))}
-            </div>
-            <div style={{ display: "flex", justifyContent: "space-between", marginTop: "3px" }}>
-              <span style={{ fontSize: "10px", color: C.muted }}>Faible</span>
-              <span style={{ fontSize: "10px", color: C.muted }}>Élevée</span>
+            <h3 style={{ margin: "0 0 8px", fontSize: "12px", fontWeight: "700", color: C.text, textTransform: "uppercase" }}>Légende</h3>
+            <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "12px" }}>
+                <div style={{ width: "18px", height: "18px", borderRadius: "50%", background: C.g1, opacity: 0.7 }} />
+                <span>Visites citoyennes</span>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "12px" }}>
+                <div style={{ background: "#1a3a6b", color: "white", borderRadius: "6px", padding: "1px 5px", fontSize: "10px", fontWeight: "700" }}>📬</div>
+                <span>Boîtage</span>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "12px" }}>
+                <div style={{ background: "#c97a00", color: "white", borderRadius: "6px", padding: "1px 5px", fontSize: "10px", fontWeight: "700" }}>🚪</div>
+                <span>Tractage</span>
+              </div>
             </div>
           </div>
 
-          {/* Classement quartiers */}
+          {/* Classement quartiers visites */}
           <div style={{ padding: "12px 16px", overflowY: "auto", flex: 1 }}>
-            <h3 style={{ margin: "0 0 10px", fontSize: "12px", fontWeight: "700", color: C.text, textTransform: "uppercase" }}>Classement</h3>
+            <h3 style={{ margin: "0 0 10px", fontSize: "12px", fontWeight: "700", color: C.text, textTransform: "uppercase" }}>Classement visites</h3>
             {loading && <p style={{ fontSize: "13px", color: C.muted }}>Chargement...</p>}
             {sorted.map(([q, n], i) => (
-              <div key={q}
-                onClick={() => {
-                  setSelectedQuartier(q === selectedQuartier ? null : q);
-                  if (QUARTIER_COORDS[q]) mapRef.current?.flyTo(QUARTIER_COORDS[q], 15, { duration: 0.8 });
-                }}
-                style={{ display: "flex", alignItems: "center", gap: "8px", padding: "7px 8px", borderRadius: "7px", marginBottom: "4px", cursor: "pointer", background: selectedQuartier === q ? "#e8f5ee" : "transparent", transition: "background 0.15s" }}>
+              <div key={q} onClick={() => {
+                setSelectedQuartier(q === selectedQuartier ? null : q);
+                if (QUARTIER_COORDS[q]) mapRef.current?.flyTo(QUARTIER_COORDS[q], 15, { duration: 0.8 });
+              }} style={{ display: "flex", alignItems: "center", gap: "8px", padding: "7px 8px", borderRadius: "7px", marginBottom: "4px", cursor: "pointer", background: selectedQuartier === q ? "#e8f5ee" : "transparent", transition: "background 0.15s" }}>
                 <span style={{ fontSize: "11px", fontWeight: "700", color: C.muted, width: "16px" }}>{i + 1}</span>
                 <div style={{ flex: 1, background: C.light, borderRadius: "3px", height: "14px", overflow: "hidden" }}>
                   <div style={{ width: `${(n / max) * 100}%`, height: "100%", background: getColor(n, max), borderRadius: "3px" }} />
@@ -247,27 +315,21 @@ export default function MapPage() {
               </div>
             ))}
             {sorted.length === 0 && !loading && (
-              <p style={{ fontSize: "13px", color: "#aaa", textAlign: "center", marginTop: "20px" }}>
-                Aucune donnée.<br />
-                <span style={{ fontSize: "11px" }}>Remplis des formulaires avec un quartier du 13ème.</span>
-              </p>
+              <p style={{ fontSize: "13px", color: "#aaa", textAlign: "center", marginTop: "20px" }}>Aucune donnée.</p>
             )}
           </div>
         </div>
 
-        {/* Carte + panel détail */}
+        {/* Carte */}
         <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
           <div ref={mapContainerRef} style={{ flex: 1 }} />
-
-          {/* Panel détail quartier sélectionné */}
           {selectedQuartier && selectedItems.length > 0 && (
             <div style={{ height: "220px", background: C.white, borderTop: `2px solid ${C.g1}`, overflowY: "auto", padding: "14px 20px" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
                 <h3 style={{ margin: 0, fontSize: "15px", fontWeight: "800", color: C.text }}>
                   📍 {selectedQuartier} — {selectedItems.length} visite(s)
                 </h3>
-                <button onClick={() => setSelectedQuartier(null)}
-                  style={{ background: "none", border: "none", cursor: "pointer", fontSize: "18px", color: C.muted }}>✕</button>
+                <button onClick={() => setSelectedQuartier(null)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: "18px", color: C.muted }}>✕</button>
               </div>
               <div style={{ display: "flex", gap: "20px", marginBottom: "10px", fontSize: "13px" }}>
                 <span style={{ color: C.g1, fontWeight: "600" }}>🗳 Vote Oui : {selectedItems.filter(i => i.intention_vote === "Oui").length}</span>

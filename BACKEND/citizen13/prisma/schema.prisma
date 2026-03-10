@@ -46,20 +46,24 @@ model quiz_forms {
 }
 
 model agents {
-  id         Int        @id @default(autoincrement())
-  nom        String     @db.VarChar(100)
-  prenom     String?    @db.VarChar(100)
-  email      String?    @unique @db.VarChar(100)
-  password   String?    @db.VarChar(255)
-  telephone  String?    @db.VarChar(20)
-  role       String     @default("benevole") @db.VarChar(50)
-  zone       String?    @db.VarChar(100)
-  actif      Boolean    @default(true)
-  created_at DateTime   @default(now())
-  visites    visites[]
-  dons       dons[]
-  accounts   accounts[]
-  sessions   sessions[]
+  id           Int           @id @default(autoincrement())
+  nom          String        @db.VarChar(100)
+  prenom       String?       @db.VarChar(100)
+  email        String?       @unique @db.VarChar(100)
+  password     String?       @db.VarChar(255)
+  telephone    String?       @db.VarChar(20)
+  role         String        @default("benevole") @db.VarChar(50)
+  zone         String?       @db.VarChar(100)
+  actif        Boolean       @default(true)
+  created_at   DateTime      @default(now())
+  visites      visites[]
+  dons         dons[]
+  accounts     accounts[]
+  sessions     sessions[]
+  boitages     boitage[]
+  prospections prospection[]
+  tractages   tractage[]
+  reunions    reunion[]
 }
 
 model visites {
@@ -98,6 +102,64 @@ model dons {
   notes      String?
   created_at DateTime @default(now())
   agent      agents?  @relation(fields: [agent_id], references: [id])
+}
+
+model boitage {
+  id           Int      @id @default(autoincrement())
+  agent_id     Int?
+  nom_benevole String?  @db.VarChar(100)
+  date         String   @db.VarChar(20)
+  quartier     String   @db.VarChar(100)
+  adresse      String?  @db.VarChar(200)
+  nb_tracts    Int      @default(0)
+  nb_boites    Int      @default(0)
+  commentaire  String?
+  created_at   DateTime @default(now())
+  agent        agents?  @relation(fields: [agent_id], references: [id])
+}
+
+model prospection {
+  id           Int      @id @default(autoincrement())
+  agent_id     Int?
+  nom_benevole String?  @db.VarChar(100)
+  date         String   @db.VarChar(20)
+  quartier     String   @db.VarChar(100)
+  adresse      String?  @db.VarChar(200)
+  nb_tracts    Int      @default(0)
+  nb_portes    Int      @default(0)
+  commentaire  String?
+  rapport      String?
+  created_at   DateTime @default(now())
+  agent        agents?  @relation(fields: [agent_id], references: [id])
+}
+
+model tractage {
+  id           Int      @id @default(autoincrement())
+  agent_id     Int?
+  nom_benevole String?  @db.VarChar(100)
+  date         String   @db.VarChar(20)
+  quartier     String   @db.VarChar(100)
+  adresse      String?  @db.VarChar(200)
+  nb_tracts    Int      @default(0)
+  nb_portes    Int      @default(0)
+  commentaire  String?
+  rapport      String?
+  created_at   DateTime @default(now())
+  agent        agents?  @relation(fields: [agent_id], references: [id])
+}
+
+model reunion {
+  id            Int      @id @default(autoincrement())
+  titre         String   @db.VarChar(200)
+  date          String   @db.VarChar(20)
+  lieu          String?  @db.VarChar(200)
+  ordre_du_jour String?
+  participants  String?
+  transcription String?
+  rapport       String?
+  fichier_url   String?  @db.VarChar(500)
+  agent_nom     String?  @db.VarChar(100)
+  created_at    DateTime @default(now())
 }
 
 model accounts {

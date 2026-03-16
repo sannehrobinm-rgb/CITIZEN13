@@ -1,4 +1,3 @@
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -62,8 +61,10 @@ model agents {
   sessions     sessions[]
   boitages     boitage[]
   prospections prospection[]
-  tractages   tractage[]
-  reunions    reunion[]
+  tractages    tractage[]
+  reunions     reunion[]
+  reset_token         String?  @db.VarChar(255)
+reset_token_expires DateTime?
 }
 
 model visites {
@@ -159,7 +160,9 @@ model reunion {
   rapport       String?
   fichier_url   String?  @db.VarChar(500)
   agent_nom     String?  @db.VarChar(100)
+  agent_id      Int?
   created_at    DateTime @default(now())
+  agent         agents?  @relation(fields: [agent_id], references: [id])
 }
 
 model accounts {
@@ -186,4 +189,16 @@ model sessions {
   agent_id     Int
   expires      DateTime
   agent        agents   @relation(fields: [agent_id], references: [id], onDelete: Cascade)
+}
+
+model evenements {
+ id            Int      @id @default(autoincrement())
+  titre         String   @db.VarChar(200)
+  date          String   @db.VarChar(20)       
+  heure      String?
+  adresse    String?  @db.VarChar(200)
+  sujets     String?
+  photo_url  String?
+  created_at    DateTime @default(now())
+  updated_at DateTime @updatedAt
 }

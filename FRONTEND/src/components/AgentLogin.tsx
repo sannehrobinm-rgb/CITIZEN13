@@ -1,23 +1,34 @@
 import { useState } from "react";
 
-export default function AgentLogin({ onLogin }) {
+type AgentLoginProps = {
+  onLogin: (name: string) => void;
+};
+
+export default function AgentLogin({ onLogin }: AgentLoginProps) {
   const [name, setName] = useState("");
 
   const handleLogin = () => {
-    if (!name.trim()) return;
-    onLogin(name.trim());
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    onLogin(trimmed);
   };
 
   return (
     <div>
+      <label htmlFor="agentName">Nom du bénévole</label>
+
       <input
+        id="agentName"
         type="text"
         placeholder="Nom du bénévole"
         value={name}
         onChange={(e) => setName(e.target.value)}
-        onKeyDown={(e) => e.key === "Enter" && handleLogin()} // ✅ Connexion Enter
+        onKeyDown={(e) => e.key === "Enter" && handleLogin()}
       />
-      <button onClick={handleLogin}>Se connecter</button>
+
+      <button onClick={handleLogin} disabled={!name.trim()}>
+        Se connecter
+      </button>
     </div>
   );
 }

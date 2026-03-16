@@ -68,19 +68,20 @@ function StatCard({ label, value, icon, gradient }: { label: string; value: numb
   );
 }
 
-function BarChart({ data, title }: { data: Record<string, number>; title: string }) {
+function BarChart({ data, title, color }: { data: Record<string, number>; title: string; color?: string }) {
   const max = Math.max(...Object.values(data), 1);
+  const baseColor = color || C.g1;
   return (
     <div style={{ background: C.white, borderRadius: "12px", padding: "20px", border: `1px solid ${C.border}` }}>
       <h3 style={{ fontSize: "12px", fontWeight: "700", color: C.text, textTransform: "uppercase", letterSpacing: "0.5px", margin: "0 0 16px" }}>{title}</h3>
       <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
         {Object.entries(data).sort((a, b) => b[1] - a[1]).slice(0, 8).map(([key, val], i) => {
-          const barColor = `hsl(${140 - (i / 7) * 110}, ${60 - (i / 7) * 10}%, ${30 + (i / 7) * 15}%)`;
+          const opacity = 1 - (i / 9) * 0.5;
           return (
             <div key={key} style={{ display: "flex", alignItems: "center", gap: "10px" }}>
               <span style={{ fontSize: "12px", color: C.muted, width: "110px", flexShrink: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{key || "—"}</span>
-              <div style={{ flex: 1, background: C.light, borderRadius: "4px", height: "20px", overflow: "hidden" }}>
-                <div style={{ width: `${(val / max) * 100}%`, height: "100%", background: barColor, borderRadius: "4px", display: "flex", alignItems: "center", justifyContent: "flex-end", paddingRight: "6px" }}>
+              <div style={{ flex: 1, background: C.light, borderRadius: "4px", height: "22px", overflow: "hidden" }}>
+                <div style={{ width: `${(val / max) * 100}%`, height: "100%", background: baseColor, opacity, borderRadius: "4px", display: "flex", alignItems: "center", justifyContent: "flex-end", paddingRight: "6px", transition: "width 0.6s ease" }}>
                   <span style={{ fontSize: "11px", color: "#fff", fontWeight: "700" }}>{val}</span>
                 </div>
               </div>
@@ -89,6 +90,268 @@ function BarChart({ data, title }: { data: Record<string, number>; title: string
         })}
         {Object.keys(data).length === 0 && <p style={{ color: "#aaa", fontSize: "13px" }}>Aucune donnée</p>}
       </div>
+    </div>
+  );
+}
+
+// Graphique en anneau (donut)
+function DonutChart({ data, title, colors }: { data: Record<string, number>; title: string; colors?: string[] }) {
+  const total = Object.values(data).reduce((a, b) => a + b, 0);
+  const defaultColors = [C.g1, C.g3, C.g4, "#c97a00", "#8b3a8b", "#2c5282", "#c0392b", "#16a085"];
+  const palette = colors || defaultColors;
+  if (total === 0) return (
+    <div style={{ background: C.white, borderRadius: "12px", padding: "20px", border: `1px solid ${C.border}`, display: "flex", flexDirection: "column", gap: "8px" }}>
+      <h3 style={{ fontSize: "12px", fontWeight: "700", color: C.text, textTransform: "uppercase", letterSpacing: "0.5px", margin: 0 }}>{title}</h3>
+      <p style={{ color: "#aaa", fontSize: "13px" }}>Aucune donnée</p>
+    </div>
+  );
+
+  let cumAngle = -90;
+  const cx = 70, cy = 70, r = 52, inner = 30;
+  const segments = Object.entries(data).map(([key, val], i) => {
+    const angle = (val / total) * 360;
+    const startAngle = cumAngle;
+    cumAngle += angle;
+    const toRad = (d: number) => (d * Math.PI) / 180;
+    const x1 = cx + r * Math.cos(toRad(startAngle));
+    const y1 = cy + r * Math.sin(toRad(startAngle));
+    const x2 = cx + r * Math.cos(toRad(cumAngle - 0.01));
+    const y2 = cy + r * Math.sin(toRad(cumAngle - 0.01));
+    const xi1 = cx + inner * Math.cos(toRad(startAngle));
+    const yi1 = cy + inner * Math.sin(toRad(startAngle));
+    const xi2 = cx + inner * Math.cos(toRad(cumAngle - 0.01));
+    const yi2 = cy + inner * Math.sin(toRad(cumAngle - 0.01));
+    const largeArc = angle > 180 ? 1 : 0;
+    const path = `M ${x1} ${y1} A ${r} ${r} 0 ${largeArc} 1 ${x2} ${y2} L ${xi2} ${yi2} A ${inner} ${inner} 0 ${largeArc} 0 ${xi1} ${yi1} Z`;
+    return { key, val, path, color: palette[i % palette.length], pct: Math.round((val / total) * 100) };
+  });
+
+  return (
+    <div style={{ background: C.white, borderRadius: "12px", padding: "20px", border: `1px solid ${C.border}` }}>
+      <h3 style={{ fontSize: "12px", fontWeight: "700", color: C.text, textTransform: "uppercase", letterSpacing: "0.5px", margin: "0 0 16px" }}>{title}</h3>
+      <div style={{ display: "flex", alignItems: "center", gap: "20px" }}>
+        <svg width="140" height="140" viewBox="0 0 140 140">
+          {segments.map(s => <path key={s.key} d={s.path} fill={s.color} />)}
+          <text x="70" y="66" textAnchor="middle" fontSize="18" fontWeight="800" fill={C.text}>{total}</text>
+          <text x="70" y="80" textAnchor="middle" fontSize="9" fill={C.muted}>TOTAL</text>
+        </svg>
+        <div style={{ display: "flex", flexDirection: "column", gap: "7px", flex: 1 }}>
+          {segments.map(s => (
+            <div key={s.key} style={{ display: "flex", alignItems: "center", gap: "7px" }}>
+              <div style={{ width: "10px", height: "10px", borderRadius: "3px", background: s.color, flexShrink: 0 }} />
+              <span style={{ fontSize: "12px", color: C.text, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.key}</span>
+              <span style={{ fontSize: "12px", fontWeight: "700", color: C.muted }}>{s.pct}%</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Graphique en courbe (évolution temporelle)
+function LineChart({ data, title, color }: { data: { date: string; value: number }[]; title: string; color?: string }) {
+  const lineColor = color || C.g1;
+  if (data.length < 2) return (
+    <div style={{ background: C.white, borderRadius: "12px", padding: "20px", border: `1px solid ${C.border}` }}>
+      <h3 style={{ fontSize: "12px", fontWeight: "700", color: C.text, textTransform: "uppercase", letterSpacing: "0.5px", margin: 0 }}>{title}</h3>
+      <p style={{ color: "#aaa", fontSize: "13px", marginTop: "12px" }}>Pas assez de données</p>
+    </div>
+  );
+  const W = 320, H = 120, PAD = { t: 16, r: 16, b: 28, l: 36 };
+  const maxV = Math.max(...data.map(d => d.value), 1);
+  const xStep = (W - PAD.l - PAD.r) / (data.length - 1);
+  const yScale = (v: number) => PAD.t + (H - PAD.t - PAD.b) * (1 - v / maxV);
+  const points = data.map((d, i) => `${PAD.l + i * xStep},${yScale(d.value)}`).join(" ");
+  const area = `M ${PAD.l},${H - PAD.b} ` + data.map((d, i) => `L ${PAD.l + i * xStep},${yScale(d.value)}`).join(" ") + ` L ${PAD.l + (data.length - 1) * xStep},${H - PAD.b} Z`;
+
+  return (
+    <div style={{ background: C.white, borderRadius: "12px", padding: "20px", border: `1px solid ${C.border}` }}>
+      <h3 style={{ fontSize: "12px", fontWeight: "700", color: C.text, textTransform: "uppercase", letterSpacing: "0.5px", margin: "0 0 12px" }}>{title}</h3>
+      <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{ overflow: "visible" }}>
+        {/* Grille */}
+        {[0, 0.5, 1].map(t => (
+          <line key={t} x1={PAD.l} x2={W - PAD.r} y1={PAD.t + (H - PAD.t - PAD.b) * t} y2={PAD.t + (H - PAD.t - PAD.b) * t} stroke={C.border} strokeWidth="1" />
+        ))}
+        {/* Aire */}
+        <path d={area} fill={lineColor} fillOpacity="0.12" />
+        {/* Ligne */}
+        <polyline points={points} fill="none" stroke={lineColor} strokeWidth="2.5" strokeLinejoin="round" />
+        {/* Points */}
+        {data.map((d, i) => (
+          <circle key={i} cx={PAD.l + i * xStep} cy={yScale(d.value)} r="4" fill={lineColor} stroke="white" strokeWidth="2" />
+        ))}
+        {/* Labels x */}
+        {data.filter((_, i) => data.length <= 8 || i % Math.ceil(data.length / 8) === 0).map((d, i, arr) => {
+          const origI = data.indexOf(d);
+          return <text key={i} x={PAD.l + origI * xStep} y={H - 4} textAnchor="middle" fontSize="8" fill={C.muted}>{d.date.slice(5)}</text>;
+        })}
+        {/* Labels y */}
+        {[0, maxV].map((v, i) => (
+          <text key={i} x={PAD.l - 4} y={i === 0 ? H - PAD.b + 4 : PAD.t + 4} textAnchor="end" fontSize="8" fill={C.muted}>{v}</text>
+        ))}
+      </svg>
+    </div>
+  );
+}
+
+// Graphique barres groupées (bénévoles : visites + boitage + tractage)
+function GroupedBarChart({ data, title }: { data: { label: string; visites: number; boitage: number; tractage: number }[]; title: string }) {
+  const maxV = Math.max(...data.flatMap(d => [d.visites, d.boitage, d.tractage]), 1);
+  const W = 360, H = 140, PAD = { t: 16, r: 16, b: 40, l: 36 };
+  const groupW = (W - PAD.l - PAD.r) / Math.max(data.length, 1);
+  const barW = Math.min(groupW * 0.22, 18);
+  const barColors = [C.g1, "#1a3a6b", "#c97a00"];
+  const yScale = (v: number) => PAD.t + (H - PAD.t - PAD.b) * (1 - v / maxV);
+
+  return (
+    <div style={{ background: C.white, borderRadius: "12px", padding: "20px", border: `1px solid ${C.border}` }}>
+      <h3 style={{ fontSize: "12px", fontWeight: "700", color: C.text, textTransform: "uppercase", letterSpacing: "0.5px", margin: "0 0 4px" }}>{title}</h3>
+      <div style={{ display: "flex", gap: "12px", marginBottom: "10px" }}>
+        {["Visites", "Boîtage", "Tractage"].map((l, i) => (
+          <div key={l} style={{ display: "flex", alignItems: "center", gap: "5px" }}>
+            <div style={{ width: "10px", height: "10px", borderRadius: "2px", background: barColors[i] }} />
+            <span style={{ fontSize: "11px", color: C.muted }}>{l}</span>
+          </div>
+        ))}
+      </div>
+      {data.length === 0 ? <p style={{ color: "#aaa", fontSize: "13px" }}>Aucune donnée</p> : (
+        <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{ overflow: "visible" }}>
+          {[0, 0.5, 1].map(t => (
+            <line key={t} x1={PAD.l} x2={W - PAD.r} y1={PAD.t + (H - PAD.t - PAD.b) * t} y2={PAD.t + (H - PAD.t - PAD.b) * t} stroke={C.border} strokeWidth="1" />
+          ))}
+          {data.slice(0, 10).map((d, i) => {
+            const gx = PAD.l + i * groupW + groupW / 2;
+            return (
+              <g key={d.label}>
+                {[d.visites, d.boitage, d.tractage].map((v, j) => (
+                  <rect key={j} x={gx + (j - 1) * (barW + 2) - barW / 2} y={yScale(v)} width={barW} height={Math.max(H - PAD.b - yScale(v), 0)} fill={barColors[j]} rx="2" />
+                ))}
+                <text x={gx} y={H - 4} textAnchor="middle" fontSize="8" fill={C.muted} style={{ overflow: "hidden" }}>
+                  {d.label.length > 8 ? d.label.slice(0, 7) + "…" : d.label}
+                </text>
+              </g>
+            );
+          })}
+        </svg>
+      )}
+    </div>
+  );
+}
+
+// ── Wrapper graphique avec menu export/archivage ──
+interface ChartCardAction {
+  label: string;
+  icon: string;
+  onClick: () => void;
+}
+
+interface ChartCardWrapperProps {
+  id: string;
+  title: string;
+  csvData?: () => string;
+  csvFilename?: string;
+  children: React.ReactNode;
+}
+
+function ChartCardWrapper({ id, title, csvData, csvFilename, children }: ChartCardWrapperProps) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [archived, setArchived] = useState(false);
+
+  const exportPNG = async () => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    // Sérialise le SVG ou capture le div en canvas via méthode native
+    const svgs = el.querySelectorAll("svg");
+    if (svgs.length > 0) {
+      const svg = svgs[0];
+      const svgData = new XMLSerializer().serializeToString(svg);
+      const canvas = document.createElement("canvas");
+      const bbox = svg.getBoundingClientRect();
+      canvas.width = bbox.width || 400;
+      canvas.height = bbox.height || 300;
+      const ctx = canvas.getContext("2d")!;
+      ctx.fillStyle = "#fff";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      const img = new Image();
+      const blob = new Blob([svgData], { type: "image/svg+xml;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      img.onload = () => {
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        URL.revokeObjectURL(url);
+        const link = document.createElement("a");
+        link.download = `${csvFilename ?? id}-${new Date().toISOString().slice(0, 10)}.png`;
+        link.href = canvas.toDataURL("image/png");
+        link.click();
+      };
+      img.src = url;
+    } else {
+      alert("Export PNG disponible uniquement pour les graphiques SVG.");
+    }
+    setMenuOpen(false);
+  };
+
+  const exportCSV = () => {
+    if (!csvData) return;
+    const csv = csvData();
+    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${csvFilename ?? id}-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    setMenuOpen(false);
+  };
+
+  const handleArchive = () => {
+    setArchived(true);
+    setMenuOpen(false);
+  };
+
+  const handleRestore = () => {
+    setArchived(false);
+  };
+
+  if (archived) {
+    return (
+      <div style={{ background: C.white, borderRadius: "12px", padding: "16px 20px", border: `1px dashed ${C.border}`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <span style={{ fontSize: "13px", color: C.muted, fontStyle: "italic" }}>🗂️ Graphique archivé : <strong style={{ color: C.text }}>{title}</strong></span>
+        <button onClick={handleRestore} style={{ padding: "5px 12px", background: C.g3, color: "#fff", border: "none", borderRadius: "6px", cursor: "pointer", fontSize: "12px", fontWeight: "600" }}>↩️ Restaurer</button>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ position: "relative" }} id={id}>
+      {/* Bouton menu */}
+      <div style={{ position: "absolute", top: "10px", right: "10px", zIndex: 10 }}>
+        <button
+          onClick={() => setMenuOpen(o => !o)}
+          title="Options"
+          style={{ width: "28px", height: "28px", borderRadius: "6px", border: `1px solid ${C.border}`, background: C.white, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "16px", color: C.muted, boxShadow: "0 1px 4px rgba(0,0,0,0.08)", lineHeight: 1 }}
+        >⋮</button>
+        {menuOpen && (
+          <>
+            {/* Overlay cliquable pour fermer */}
+            <div onClick={() => setMenuOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 9 }} />
+            <div style={{ position: "absolute", right: 0, top: "32px", background: C.white, border: `1px solid ${C.border}`, borderRadius: "10px", boxShadow: "0 6px 24px rgba(0,0,0,0.13)", zIndex: 20, minWidth: "170px", overflow: "hidden" }}>
+              <button onClick={exportPNG} style={{ display: "flex", alignItems: "center", gap: "8px", width: "100%", padding: "10px 14px", background: "none", border: "none", cursor: "pointer", fontSize: "13px", color: C.text, textAlign: "left" }}>
+                <span>🖼️</span> Exporter PNG
+              </button>
+              {csvData && (
+                <button onClick={exportCSV} style={{ display: "flex", alignItems: "center", gap: "8px", width: "100%", padding: "10px 14px", background: "none", border: "none", cursor: "pointer", fontSize: "13px", color: C.text, textAlign: "left", borderTop: `1px solid ${C.border}` }}>
+                  <span>📊</span> Exporter CSV
+                </button>
+              )}
+              <button onClick={handleArchive} style={{ display: "flex", alignItems: "center", gap: "8px", width: "100%", padding: "10px 14px", background: "none", border: "none", cursor: "pointer", fontSize: "13px", color: "#c97a00", textAlign: "left", borderTop: `1px solid ${C.border}` }}>
+                <span>🗂️</span> Archiver
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+      {children}
     </div>
   );
 }
@@ -129,6 +392,45 @@ export default function AdminDashboard() {
 
   // Invitation mail
   const [invitingAgent, setInvitingAgent] = useState<number | null>(null);
+
+  // Sélection multiple pour archivage
+  const [selectedIds, setSelectedIds] = useState<Set<string | number>>(new Set());
+  const [showArchiveConfirm, setShowArchiveConfirm] = useState(false);
+
+  const toggleSelect = (id: string | number) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === paginated.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(paginated.map(r => r.id)));
+    }
+  };
+
+  const handleBulkArchive = async () => {
+    try {
+      await Promise.all(
+        Array.from(selectedIds).map(id =>
+          fetch(`${API}/api/admin/forms/responses/${id}/archive`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ archived: true }),
+          })
+        )
+      );
+      setResponses(prev => prev.map(r => selectedIds.has(r.id) ? { ...r, archived: true } : r));
+      setSelectedIds(new Set());
+      setShowArchiveConfirm(false);
+    } catch {
+      alert("Erreur lors de l'archivage groupé");
+    }
+  };
 
   const fetchResponses = async () => {
     try {
@@ -306,7 +608,69 @@ export default function AdminDashboard() {
 
   const quartiers = ["Tous", ...Array.from(new Set(responses.map(r => r.quartier).filter(Boolean) as string[]))];
   const intentions = ["Toutes", ...Array.from(new Set(responses.map(r => r.intention_vote).filter(Boolean) as string[]))];
-  const prochainEvenement = evenements.length > 0 ? evenements[0] : null;
+
+  // Données graphiques enrichies
+  const chartData = useMemo(() => {
+    // Évolution visites par mois
+    const visitesParMois: Record<string, number> = {};
+    responses.forEach(r => {
+      if (r.date_visite) {
+        const m = r.date_visite.slice(0, 7); // YYYY-MM
+        visitesParMois[m] = (visitesParMois[m] || 0) + 1;
+      }
+    });
+    const visitesLine = Object.entries(visitesParMois).sort().map(([date, value]) => ({ date, value }));
+
+    // Évolution dons par mois
+    const donsParMois: Record<string, number> = {};
+    dons.forEach(d => {
+      const m = d.created_at?.slice(0, 7);
+      if (m) donsParMois[m] = (donsParMois[m] || 0) + (d.montant ?? 0);
+    });
+    const donsLine = Object.entries(donsParMois).sort().map(([date, value]) => ({ date, value: Math.round(value) }));
+
+    // Participation bénévoles (visites + boitage + tractage)
+    const benevoleMap: Record<string, { visites: number; boitage: number; tractage: number }> = {};
+    responses.forEach(r => {
+      const b = r.nom_benevole || "Inconnu";
+      if (!benevoleMap[b]) benevoleMap[b] = { visites: 0, boitage: 0, tractage: 0 };
+      benevoleMap[b].visites++;
+    });
+    boitages.forEach(b => {
+      const name = b.nom_benevole || "Inconnu";
+      if (!benevoleMap[name]) benevoleMap[name] = { visites: 0, boitage: 0, tractage: 0 };
+      benevoleMap[name].boitage++;
+    });
+    tractages.forEach(t => {
+      const name = t.nom_benevole || "Inconnu";
+      if (!benevoleMap[name]) benevoleMap[name] = { visites: 0, boitage: 0, tractage: 0 };
+      benevoleMap[name].tractage++;
+    });
+    const benevoleData = Object.entries(benevoleMap)
+      .map(([label, v]) => ({ label, ...v }))
+      .sort((a, b) => (b.visites + b.boitage + b.tractage) - (a.visites + a.boitage + a.tractage));
+
+    // Données questionnaires
+    const interetsMap: Record<string, number> = {};
+    const themesMap: Record<string, number> = {};
+    const soutienMap: Record<string, number> = {};
+    responses.forEach(r => {
+      (r.interets ?? []).forEach((i: string) => { interetsMap[i] = (interetsMap[i] || 0) + 1; });
+      (r.themes_importants ?? []).forEach((t: string) => { themesMap[t] = (themesMap[t] || 0) + 1; });
+      if (r.soutien_assoc) soutienMap[r.soutien_assoc] = (soutienMap[r.soutien_assoc] || 0) + 1;
+    });
+
+    // Statut dons donut
+    const donsStatut: Record<string, number> = { "Reçus": 0, "En attente": 0, "Annulés": 0 };
+    dons.forEach(d => {
+      if (d.statut === "recu") donsStatut["Reçus"]++;
+      else if (d.statut === "en_attente") donsStatut["En attente"]++;
+      else if (d.statut === "annule") donsStatut["Annulés"]++;
+    });
+
+    return { visitesLine, donsLine, benevoleData, interetsMap, themesMap, soutienMap, donsStatut };
+  }, [responses, dons, boitages, tractages]);
+  
   const filtered = useMemo(() => responses.filter(r => {
     const s = search.toLowerCase();
     const matchSearch = (r.nom_benevole?.toLowerCase() ?? "").includes(s) || (r.quartier?.toLowerCase() ?? "").includes(s) || (r.intention_vote?.toLowerCase() ?? "").includes(s) || (r.email?.toLowerCase() ?? "").includes(s);
@@ -343,11 +707,11 @@ export default function AdminDashboard() {
       {/* Header */}
       <div style={{ background: GRADIENT, padding: "16px 32px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-          <img src="/logo.png" alt="Citizen13" style={{ height: "80px", borderRadius: "4px" }} />
+          <img src="/logo.png" alt="Citizen13" style={{ height: "80px", borderRadius: "4px", cursor: "pointer" }}onClick={() => navigate(-1)}  />
           <span style={{ color: "rgba(255,255,255,0.85)", fontSize: "9px", letterSpacing: "0.12em", textTransform: "uppercase", fontWeight: "500" }}>Dashboard Administrateur</span>
         </div>
         <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
-          <button onClick={() => window.open("/visit", "_blank")} style={hBtn}>➕ Nouvelle visite</button>
+          <button onClick={() => window.open("/visit", "_blank")} style={hBtn}> + Nouvelle visite</button>
           <button onClick={exportCSV} style={hBtn}>⬇️ Export CSV</button>
           <button onClick={() => setShowTemplateModal(true)} style={hBtn}>📋 Templates</button>
           <button onClick={() => navigate("/map")} style={hBtn}>🗺 Carte</button>
@@ -366,24 +730,99 @@ export default function AdminDashboard() {
 
               {/* Gauche : barre de tabs verticale */}
               <div style={{ width: "43%", flexShrink: 0, display: "flex", flexDirection: "column" }}>
-                <div style={{ display: "flex", flexDirection: "column", gap: "6px", background: C.white, padding: "6px", borderRadius: "12px", boxShadow: "0 1px 4px rgba(0,0,0,0.06)", flex: 1 }}>
-                  <button style={tabStyle(activeTab === "stats")} onClick={() => setActiveTab("stats")}>📊 Statistiques</button>
-                  <button style={tabStyle(activeTab === "responses")} onClick={() => { setActiveTab("responses"); setFilterArchived("active"); }}>📋 Actives ({stats.active.length})</button>
-                  <button style={tabStyle(activeTab === "archive")} onClick={() => { setActiveTab("archive"); setFilterArchived("archived"); }}>🗂️ Archives ({stats.archived.length})</button>
-                  <button style={tabStyle(activeTab === "agents")} onClick={() => setActiveTab("agents")}>👥 Agents ({agents.length})</button>
-                  <button style={tabStyle(activeTab === "dons")} onClick={() => setActiveTab("dons")}>💛 Dons ({dons.length})</button>
-                  <button style={tabStyle(activeTab === "evenements")} onClick={() => setActiveTab("evenements")}>📅 Événements ({evenements.length})</button>
-                </div>
-              </div>
+  <div style={{ display: "flex", flexDirection: "column", gap: "6px", background: C.white, padding: "6px", borderRadius: "12px", boxShadow: "0 1px 4px rgba(0,0,0,0.06)", flex: 1 }}>
+    <button style={tabStyle((activeTab as string) === "stats")} onClick={() => setActiveTab("stats")}>📊 Statistiques</button>
+    <button style={tabStyle((activeTab as string) === "responses")} onClick={() => { setActiveTab("responses"); setFilterArchived("active"); }}>📋 Actives ({stats.active.length})</button>
+    <button style={tabStyle((activeTab as string) === "archive")} onClick={() => { setActiveTab("archive"); setFilterArchived("archived"); }}>🗂️ Archives ({stats.archived.length})</button>
+    <button style={tabStyle((activeTab as string) === "agents")} onClick={() => setActiveTab("agents")}>👥 Agents ({agents.length})</button>
+    <button style={tabStyle((activeTab as string) === "dons")} onClick={() => setActiveTab("dons")}>💛 Dons ({dons.length})</button>
+    <button style={tabStyle((activeTab as string) === "evenements")} onClick={() => setActiveTab("evenements")}>📅 Événements ({evenements.length})</button>
+  </div>
+</div>
 
               {/* Droite : Analyses visites */}
               <div style={{ flex: 1 }}>
                 <h2 style={{ fontSize: "13px", fontWeight: "700", color: C.muted, textTransform: "uppercase", letterSpacing: "0.5px", margin: "0 0 12px" }}>📊 Analyses visites</h2>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
-                  <BarChart data={stats.parQuartier} title="Visites par quartier" />
-                  <BarChart data={stats.parIntention} title="Intention de vote" />
-                  <BarChart data={stats.parInscrit} title="Inscription listes" />
-                  <BarChart data={stats.parBenevole} title="Visites par bénévole" />
+                  <ChartCardWrapper id="chart-visites-quartier" title="Visites par quartier" csvFilename="visites-par-quartier" csvData={() => ["Quartier,Visites", ...Object.entries(stats.parQuartier).map(([k, v]) => `${k},${v}`)].join("\n")}>
+                    <BarChart data={stats.parQuartier} title="Visites par quartier" color={C.g1} />
+                  </ChartCardWrapper>
+                  <ChartCardWrapper id="chart-intention-vote" title="Intention de vote" csvFilename="intention-vote" csvData={() => ["Intention,Nombre", ...Object.entries(stats.parIntention).map(([k, v]) => `${k},${v}`)].join("\n")}>
+                    <DonutChart data={stats.parIntention} title="Intention de vote" colors={[C.g1, "#b71c1c", "#c97a00", C.g3]} />
+                  </ChartCardWrapper>
+                  <ChartCardWrapper id="chart-inscription" title="Inscription listes" csvFilename="inscription-listes" csvData={() => ["Statut,Nombre", ...Object.entries(stats.parInscrit).map(([k, v]) => `${k},${v}`)].join("\n")}>
+                    <BarChart data={stats.parInscrit} title="Inscription listes" color={C.g3} />
+                  </ChartCardWrapper>
+                  <ChartCardWrapper id="chart-souhait-don" title="Souhait de don" csvFilename="souhait-don" csvData={() => `Catégorie,Nombre\nSouhait don,${stats.dons.length}\nSans don,${stats.active.length - stats.dons.length}`}>
+                    <DonutChart data={{ "Souhait don": stats.dons.length, "Sans don": stats.active.length - stats.dons.length }} title="Souhait de don" colors={["#c9a800", C.border]} />
+                  </ChartCardWrapper>
+                </div>
+              </div>
+            </div>
+
+            {/* ── GRAPHIQUES ÉVOLUTION ── */}
+            <div>
+              <h2 style={{ fontSize: "13px", fontWeight: "700", color: C.muted, textTransform: "uppercase", letterSpacing: "0.5px", margin: "0 0 12px" }}>📈 Évolution dans le temps</h2>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
+                <ChartCardWrapper id="chart-visites-mois" title="Visites par mois" csvFilename="visites-par-mois" csvData={() => ["Mois,Visites", ...chartData.visitesLine.map(d => `${d.date},${d.value}`)].join("\n")}>
+                  <LineChart data={chartData.visitesLine} title="Visites par mois" color={C.g1} />
+                </ChartCardWrapper>
+                <ChartCardWrapper id="chart-dons-mois" title="Dons par mois" csvFilename="dons-par-mois" csvData={() => ["Mois,Montant (€)", ...chartData.donsLine.map(d => `${d.date},${d.value}`)].join("\n")}>
+                  <LineChart data={chartData.donsLine} title="Dons collectés par mois (€)" color="#c9a800" />
+                </ChartCardWrapper>
+              </div>
+            </div>
+
+            {/* ── PARTICIPATION BÉNÉVOLES ── */}
+            <div>
+              <h2 style={{ fontSize: "13px", fontWeight: "700", color: C.muted, textTransform: "uppercase", letterSpacing: "0.5px", margin: "0 0 12px" }}>👥 Participation des bénévoles</h2>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
+                <ChartCardWrapper id="chart-activites-benevole" title="Activités par bénévole" csvFilename="activites-benevoles" csvData={() => ["Bénévole,Visites,Boîtage,Tractage", ...chartData.benevoleData.map(d => `${d.label},${d.visites},${d.boitage},${d.tractage}`)].join("\n")}>
+                  <GroupedBarChart data={chartData.benevoleData} title="Activités par bénévole" />
+                </ChartCardWrapper>
+                <ChartCardWrapper id="chart-visites-benevole" title="Visites par bénévole" csvFilename="visites-benevoles" csvData={() => ["Bénévole,Visites", ...Object.entries(stats.parBenevole).map(([k, v]) => `${k},${v}`)].join("\n")}>
+                  <BarChart data={stats.parBenevole} title="Visites par bénévole" color={C.g2} />
+                </ChartCardWrapper>
+              </div>
+            </div>
+
+            {/* ── DONNÉES QUESTIONNAIRES ── */}
+            <div>
+              <h2 style={{ fontSize: "13px", fontWeight: "700", color: C.muted, textTransform: "uppercase", letterSpacing: "0.5px", margin: "0 0 12px" }}>📋 Données questionnaires</h2>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "16px" }}>
+                <ChartCardWrapper id="chart-interets" title="Centres d'intérêt" csvFilename="centres-interet" csvData={() => ["Intérêt,Nombre", ...Object.entries(chartData.interetsMap).map(([k, v]) => `${k},${v}`)].join("\n")}>
+                  <BarChart data={chartData.interetsMap} title="Centres d'intérêt" color={C.g3} />
+                </ChartCardWrapper>
+                <ChartCardWrapper id="chart-themes" title="Thèmes importants" csvFilename="themes-importants" csvData={() => ["Thème,Nombre", ...Object.entries(chartData.themesMap).map(([k, v]) => `${k},${v}`)].join("\n")}>
+                  <BarChart data={chartData.themesMap} title="Thèmes importants" color={C.g4} />
+                </ChartCardWrapper>
+                <ChartCardWrapper id="chart-soutien" title="Soutien association" csvFilename="soutien-association" csvData={() => ["Soutien,Nombre", ...Object.entries(chartData.soutienMap).map(([k, v]) => `${k},${v}`)].join("\n")}>
+                  <DonutChart data={chartData.soutienMap} title="Soutien association" />
+                </ChartCardWrapper>
+              </div>
+            </div>
+
+            {/* ── DONS ── */}
+            <div>
+              <h2 style={{ fontSize: "13px", fontWeight: "700", color: C.muted, textTransform: "uppercase", letterSpacing: "0.5px", margin: "0 0 12px" }}>💛 Dons</h2>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
+                <ChartCardWrapper id="chart-statut-dons" title="Statut des dons" csvFilename="statut-dons" csvData={() => ["Statut,Nombre", ...Object.entries(chartData.donsStatut).map(([k, v]) => `${k},${v}`)].join("\n")}>
+                  <DonutChart data={chartData.donsStatut} title="Statut des dons" colors={[C.g1, "#c97a00", "#b71c1c"]} />
+                </ChartCardWrapper>
+                <div style={{ background: C.white, borderRadius: "12px", padding: "20px", border: `1px solid ${C.border}`, display: "flex", flexDirection: "column", gap: "12px" }}>
+                  <h3 style={{ fontSize: "12px", fontWeight: "700", color: C.text, textTransform: "uppercase", letterSpacing: "0.5px", margin: 0 }}>Résumé financier</h3>
+                  {[
+                    { label: "Total collecté", value: `${donStats.total.toFixed(2)} €`, color: C.g1 },
+                    { label: "Nombre de dons", value: donStats.nb, color: C.g3 },
+                    { label: "Dons reçus", value: donStats.recus, color: C.g2 },
+                    { label: "En attente", value: donStats.attente, color: "#c97a00" },
+                    { label: "Montant moyen", value: `${donStats.moyenne.toFixed(2)} €`, color: C.g4 },
+                  ].map(item => (
+                    <div key={item.label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 12px", background: C.light, borderRadius: "8px" }}>
+                      <span style={{ fontSize: "13px", color: C.muted }}>{item.label}</span>
+                      <span style={{ fontSize: "16px", fontWeight: "800", color: item.color }}>{item.value}</span>
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>
@@ -446,7 +885,9 @@ export default function AdminDashboard() {
                   <StatCard label="Boîtes" value={terrainStats.totalBoites} icon="🏠" gradient={`linear-gradient(90deg, #1a3a6b, #2c5282)`} />
                   <StatCard label="Tracts" value={terrainStats.totalTractsB} icon="📄" gradient={`linear-gradient(90deg, #2c5282, ${C.g4})`} />
                 </div>
-                <BarChart data={terrainStats.parQuartierB} title="Boîtes par quartier" />
+                <ChartCardWrapper id="chart-boitage-quartier" title="Boîtes par quartier" csvFilename="boitage-quartier" csvData={() => ["Quartier,Boîtes", ...Object.entries(terrainStats.parQuartierB).map(([k, v]) => `${k},${v}`)].join("\n")}>
+                  <BarChart data={terrainStats.parQuartierB} title="Boîtes par quartier" />
+                </ChartCardWrapper>
               </div>
 
               {/* Tractage — bas droite */}
@@ -457,7 +898,9 @@ export default function AdminDashboard() {
                   <StatCard label="Portes" value={terrainStats.totalPortes} icon="🚪" gradient={`linear-gradient(90deg, #c97a00, #7d4e00)`} />
                   <StatCard label="Tracts" value={terrainStats.totalTractsT} icon="🗞️" gradient={`linear-gradient(90deg, #7d4e00, #c97a00)`} />
                 </div>
-                <BarChart data={terrainStats.parQuartierT} title="Tracts par quartier" />
+                <ChartCardWrapper id="chart-tractage-quartier" title="Tracts par quartier" csvFilename="tractage-quartier" csvData={() => ["Quartier,Tracts", ...Object.entries(terrainStats.parQuartierT).map(([k, v]) => `${k},${v}`)].join("\n")}>
+                  <BarChart data={terrainStats.parQuartierT} title="Tracts par quartier" />
+                </ChartCardWrapper>
               </div>
 
             </div>
@@ -489,6 +932,11 @@ export default function AdminDashboard() {
                 <option value="active">Actives</option><option value="archived">Archivées</option><option value="all">Toutes</option>
               </select>
               <span style={{ fontSize: "13px", color: C.muted }}>{filtered.length} résultat(s)</span>
+              {selectedIds.size > 0 && (
+                <button onClick={() => setShowArchiveConfirm(true)} style={{ padding: "8px 14px", background: "#c97a00", color: "white", border: "none", borderRadius: "8px", cursor: "pointer", fontSize: "12px", fontWeight: "600" }}>
+                  🗂 Archiver la sélection ({selectedIds.size})
+                </button>
+              )}
               <button onClick={exportCSV} style={{ padding: "8px 14px", background: C.g1, color: "white", border: "none", borderRadius: "8px", cursor: "pointer", fontSize: "12px", fontWeight: "600" }}>⬇️ CSV</button>
             </div>
             {loading && <p style={{ textAlign: "center", color: C.muted }}>Chargement...</p>}
@@ -496,11 +944,19 @@ export default function AdminDashboard() {
             {!loading && !error && (
               <div style={{ background: C.white, borderRadius: "12px", border: `1px solid ${C.border}`, overflow: "auto", boxShadow: "0 2px 8px rgba(0,0,0,0.05)" }}>
                 <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
-                  <thead><tr style={{ background: GRADIENT }}>{["ID", "Date", "Bénévole", "Quartier", "Intention", "Inscrit", "Don", "Statut", "Actions"].map(h => <th key={h} style={{ padding: "11px 13px", textAlign: "left", fontSize: "11px", fontWeight: "700", textTransform: "uppercase", letterSpacing: "0.5px", color: "white" }}>{h}</th>)}</tr></thead>
+                  <thead><tr style={{ background: GRADIENT }}>
+                    <th style={{ padding: "11px 13px", textAlign: "left" }}>
+                      <input type="checkbox" checked={paginated.length > 0 && selectedIds.size === paginated.length} onChange={toggleSelectAll} style={{ cursor: "pointer", width: "15px", height: "15px" }} />
+                    </th>
+                    {["ID", "Date", "Bénévole", "Quartier", "Intention", "Inscrit", "Don", "Statut", "Actions"].map(h => <th key={h} style={{ padding: "11px 13px", textAlign: "left", fontSize: "11px", fontWeight: "700", textTransform: "uppercase", letterSpacing: "0.5px", color: "white" }}>{h}</th>)}
+                  </tr></thead>
                   <tbody>
                     {paginated.length === 0 && <tr><td colSpan={9} style={{ textAlign: "center", padding: "32px", color: "#aaa" }}>Aucune réponse trouvée</td></tr>}
                     {paginated.map((r, i) => (
-                      <tr key={r.id} style={{ background: i % 2 === 0 ? C.white : C.light, borderBottom: `1px solid ${C.border}` }}>
+                      <tr key={r.id} style={{ background: selectedIds.has(r.id) ? "#fff9e6" : i % 2 === 0 ? C.white : C.light, borderBottom: `1px solid ${C.border}` }}>
+                        <td style={tdS}>
+                          <input type="checkbox" checked={selectedIds.has(r.id)} onChange={() => toggleSelect(r.id)} style={{ cursor: "pointer", width: "15px", height: "15px" }} />
+                        </td>
                         <td style={tdS}><span style={{ fontWeight: "700", color: C.muted }}>#{r.id}</span></td>
                         <td style={tdS}>{r.date_visite ?? "—"}</td>
                         <td style={{ ...tdS, fontWeight: "600" }}>{r.nom_benevole ?? "—"}</td>
@@ -616,8 +1072,7 @@ export default function AdminDashboard() {
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
               {evenements.length === 0 && <div style={{ background: C.white, borderRadius: "12px", padding: "32px", textAlign: "center", color: "#aaa", border: `1px solid ${C.border}` }}>Aucun événement enregistré</div>}
-              {evenements.map((e) => (
-                <div key={e.id} style={{ background: C.white, borderRadius: "12px", border: `1px solid ${C.border}`, boxShadow: "0 2px 8px rgba(0,0,0,0.05)", display: "flex", gap: "16px", alignItems: "center", padding: "16px" }}>
+{[...evenements].sort((a, b) => a.date.localeCompare(b.date)).map((e) => (                <div key={e.id} style={{ background: C.white, borderRadius: "12px", border: `1px solid ${C.border}`, boxShadow: "0 2px 8px rgba(0,0,0,0.05)", display: "flex", gap: "16px", alignItems: "center", padding: "16px" }}>
                   {e.photo_url
                     ? <img src={e.photo_url} alt={e.titre} style={{ width: "80px", height: "80px", objectFit: "cover", borderRadius: "10px", flexShrink: 0 }} />
                     : <div style={{ width: "80px", height: "80px", background: C.light, borderRadius: "10px", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "32px", flexShrink: 0 }}>📅</div>
@@ -645,7 +1100,7 @@ export default function AdminDashboard() {
           <div style={{ background: C.white, borderRadius: "14px", padding: "24px", width: "480px", maxWidth: "95vw", maxHeight: "85vh", overflowY: "auto", boxShadow: "0 20px 60px rgba(0,0,0,0.25)" }}>
             <h2 style={{ margin: "0 0 20px", fontSize: "17px", fontWeight: "800", color: C.text }}>{editingEvenement.id ? "✏️ Modifier l'événement" : "➕ Nouvel événement"}</h2>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
-              {([["Titre *", "titre", "text"], ["Date", "date", "text"], ["Heure", "heure", "text"], ["Adresse", "adresse", "text"]] as [string, keyof Evenement, string][]).map(([label, field, type]) => (
+       {([["Titre *", "titre", "text"], ["Date", "date", "date"], ["Heure", "heure", "time"], ["Adresse", "adresse", "text"]] as [string, keyof Evenement, string][]).map(([label, field, type]) => (
                 <div key={field as string}>
                   <label style={{ fontSize: "11px", color: C.muted, textTransform: "uppercase", fontWeight: "600" }}>{label}</label>
                   <input type={type} value={(editingEvenement as any)[field] ?? ""} onChange={e => setEditingEvenement({ ...editingEvenement, [field]: e.target.value })}
@@ -876,6 +1331,38 @@ export default function AdminDashboard() {
           </div>
         </div>
       )}
+
+      {/* Modal Confirmation Archivage groupé */}
+      {showArchiveConfirm && (
+        <div style={backdrop}>
+          <div style={{ background: C.white, borderRadius: "16px", padding: "32px", width: "420px", maxWidth: "95vw", boxShadow: "0 20px 60px rgba(0,0,0,0.25)", textAlign: "center" }}>
+            <div style={{ fontSize: "48px", marginBottom: "16px" }}>🗂️</div>
+            <h2 style={{ fontSize: "18px", fontWeight: "800", color: C.text, margin: "0 0 10px" }}>
+              Confirmer l'archivage
+            </h2>
+            <p style={{ color: C.muted, fontSize: "14px", lineHeight: 1.6, margin: "0 0 8px" }}>
+              Vous êtes sur le point d'archiver
+            </p>
+            <p style={{ color: C.g1, fontSize: "22px", fontWeight: "800", margin: "0 0 8px" }}>
+              {selectedIds.size} fiche{selectedIds.size > 1 ? "s" : ""}
+            </p>
+            <p style={{ color: C.muted, fontSize: "13px", margin: "0 0 28px" }}>
+              Ces fiches seront déplacées dans les archives. Cette action est réversible.
+            </p>
+            <div style={{ display: "flex", gap: "10px" }}>
+              <button onClick={() => setShowArchiveConfirm(false)}
+                style={{ flex: 1, padding: "12px", background: C.light, color: C.text, border: `1px solid ${C.border}`, borderRadius: "10px", cursor: "pointer", fontWeight: "600", fontSize: "14px" }}>
+                Annuler
+              </button>
+              <button onClick={handleBulkArchive}
+                style={{ flex: 1, padding: "12px", background: "#c97a00", color: "white", border: "none", borderRadius: "10px", cursor: "pointer", fontWeight: "700", fontSize: "14px" }}>
+                ✅ Confirmer l'archivage
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
@@ -883,4 +1370,4 @@ export default function AdminDashboard() {
 const tdS: React.CSSProperties = { padding: "10px 13px", color: "#111", verticalAlign: "middle" };
 const backdrop: React.CSSProperties = { position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, padding: "16px" };
 const btn = (bg: string, color = "#fff"): React.CSSProperties => ({ padding: "5px 10px", background: bg, color, border: "none", borderRadius: "6px", cursor: "pointer", fontSize: "12px", fontWeight: "600", whiteSpace: "nowrap" });
-const hBtn: React.CSSProperties = { padding: "8px 16px", background: "rgba(255,255,255,0.15)", color: "white", border: "1px solid rgba(255,255,255,0.3)", borderRadius: "8px", cursor: "pointer", fontSize: "13px", fontWeight: "600" };
+const hBtn: React.CSSProperties = { padding: "4px 10px", background: "rgba(255,255,255,0.15)", color: "white", border: "1px solid rgba(255,255,255,0.3)", borderRadius: "8px", cursor: "pointer", fontSize: "10px", fontWeight: "600", height: "44px", display: "flex", alignItems: "center" };

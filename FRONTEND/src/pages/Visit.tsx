@@ -316,8 +316,8 @@ export default function Visit() {
         </div>
       </div>
       <button onClick={() => { localStorage.removeItem("token"); localStorage.removeItem("role"); localStorage.removeItem("user"); navigate("/login"); }}
-        style={{ background: "rgba(255,255,255,0.18)", border: "1px solid rgba(255,255,255,0.3)", color: "white", borderRadius: "8px", padding: "6px 10px", cursor: "pointer", fontSize: "12px", fontWeight: "600", whiteSpace: "nowrap" }}>
-        🚪
+        style={{ background: "rgba(255,255,255,0.18)", border: "1px solid rgba(255,255,255,0.3)", color: "white", borderRadius: "8px", width: "fit-content", cursor: "pointer", fontSize: "12px", fontWeight: "600", whiteSpace: "nowrap" }}>
+        Deconnexion🚪
       </button>
     </div>
   );
@@ -367,7 +367,7 @@ export default function Visit() {
 
           {/* Carte événement à droite */}
           {evenements.length > 0 && (() => {
-            const e = evenements[0];
+            const e = [...evenements].sort((a, b) => a.date.localeCompare(b.date))[0];
             return (
               <div onClick={() => setView("evenement")} style={{ width: "130px", flexShrink: 0, background: C.white, borderRadius: "14px", border: `2px solid ${C.g1}`, padding: "10px", cursor: "pointer", boxShadow: "0 2px 8px rgba(0,0,0,0.08)" }}>
                 {e.photo_url
@@ -618,7 +618,7 @@ export default function Visit() {
   // ══════════════════════════════════════════
   // RÉUNION
   // ══════════════════════════════════════════
-  return (
+if (view === "reunion") return (
     <div style={pageStyle}>
       <Header title="🤝 Réunions" onBack={() => setView("dashboard")} />
       <SuccessToast />
@@ -715,28 +715,42 @@ export default function Visit() {
     </div>
   );
 
-  // ── EVENEMENT ──
-  if (view === "evenement") return (
-    <div style={pageStyle}>
-      <Header title="Événements" onBack={() => setView("dashboard")} />
-      <div style={content}>
-        {evenements.length === 0 ? (
-          <div style={{ ...card, textAlign: "center", color: C.muted, fontSize: "13px", border: `1px dashed ${C.border}` }}>Aucun événement à venir</div>
-        ) : evenements.map(e => (
-          <div key={e.id} style={{ ...card, display: "flex", gap: "14px", alignItems: "flex-start" }}>
-            {e.photo_url
-              ? <img src={e.photo_url} alt="" style={{ width: "72px", height: "72px", objectFit: "cover", borderRadius: "10px", flexShrink: 0 }} />
-              : <div style={{ width: "72px", height: "72px", background: C.light, borderRadius: "10px", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "28px", flexShrink: 0 }}>📅</div>
-            }
-            <div style={{ flex: 1 }}>
-              <div style={{ fontWeight: "800", fontSize: "14px", color: C.text, marginBottom: "4px" }}>{e.titre}</div>
-              <div style={{ fontSize: "12px", color: C.g1, fontWeight: "700" }}>{e.date}{e.heure ? ` · ${e.heure}` : ""}</div>
-              {e.adresse && <div style={{ fontSize: "12px", color: C.muted, marginTop: "2px" }}>📍 {e.adresse}</div>}
-              {e.sujets && <div style={{ fontSize: "12px", color: C.text, marginTop: "6px", borderTop: `1px solid ${C.border}`, paddingTop: "6px" }}>{e.sujets}</div>}
+  {/* ── EVENEMENT ── */}
+if (view === "evenement") return (
+  <div style={pageStyle}>
+    <Header title="Événements" onBack={() => setView("dashboard")} />
+    <div style={content}>
+      {evenements.length === 0 ? (
+        <div style={{ ...card, textAlign: "center", color: C.muted, fontSize: "13px", border: `1px dashed ${C.border}` }}>Aucun événement à venir</div>
+      ) : Object.entries(
+          [...evenements].sort((a, b) => a.date.localeCompare(b.date)).reduce((acc, e) => {
+            if (!acc[e.date]) acc[e.date] = [];
+            acc[e.date].push(e);
+            return acc;
+          }, {} as Record<string, Evenement[]>)
+        ).map(([date, items]) => (
+          <div key={date}>
+            <div style={{ fontSize: "11px", fontWeight: "700", color: C.g1, textTransform: "uppercase", padding: "8px 0 4px", borderBottom: `1px solid ${C.border}`, marginBottom: "8px" }}>
+              📆 {date}{items.length > 1 ? ` · ${items.length} événements` : ""}
             </div>
+            {items.map(e => (
+              <div key={e.id} style={{ ...card, display: "flex", gap: "14px", alignItems: "flex-start" }}>
+                {e.photo_url
+                  ? <img src={e.photo_url} alt="" style={{ width: "72px", height: "72px", objectFit: "cover", borderRadius: "10px", flexShrink: 0 }} />
+                  : <div style={{ width: "72px", height: "72px", background: C.light, borderRadius: "10px", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "28px", flexShrink: 0 }}>📅</div>
+                }
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontWeight: "800", fontSize: "14px", color: C.text, marginBottom: "4px" }}>{e.titre}</div>
+                  <div style={{ fontSize: "12px", color: C.g1, fontWeight: "700" }}>{e.date}{e.heure ? ` · ${e.heure}` : ""}</div>
+                  {e.adresse && <div style={{ fontSize: "12px", color: C.muted, marginTop: "2px" }}>📍 {e.adresse}</div>}
+                  {e.sujets && <div style={{ fontSize: "12px", color: C.text, marginTop: "6px", borderTop: `1px solid ${C.border}`, paddingTop: "6px" }}>{e.sujets}</div>}
+                </div>
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
+        ))
+      }
     </div>
-  );
+  </div>
+);
 }

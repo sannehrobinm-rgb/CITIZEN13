@@ -1,3 +1,4 @@
+// Login.tsx
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
@@ -54,10 +55,8 @@ export default function Login() {
   return (
     <div style={{ minHeight: "100vh", background: GRADIENT, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", fontFamily: "'Segoe UI', sans-serif", padding: "16px" }}>
 
-      {/* Card */}
       <div style={{ background: C.white, borderRadius: "20px", padding: "40px 36px", width: "100%", maxWidth: "400px", boxShadow: "0 24px 64px rgba(0,0,0,0.25)" }}>
 
-        {/* Logo + titre */}
         <div style={{ textAlign: "center", marginBottom: "32px" }}>
           <img src="/logo.png" alt="Citizen13" style={{ height: "64px", marginBottom: "14px" }}
             onError={e => { e.currentTarget.style.display = "none"; }} />
@@ -65,7 +64,6 @@ export default function Login() {
           <p style={{ fontSize: "13px", color: "#888", margin: 0 }}>Accès réservé aux membres Citizen13</p>
         </div>
 
-        {/* Formulaire */}
         <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
           <div>
             <label style={labelStyle}>Email</label>
@@ -74,7 +72,13 @@ export default function Login() {
               placeholder="votre@email.fr" style={inputStyle} />
           </div>
           <div>
-            <label style={labelStyle}>Mot de passe</label>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <label style={labelStyle}>Mot de passe</label>
+              <button onClick={() => navigate("/forgot-password")}
+                style={{ background: "none", border: "none", color: C.g1, fontSize: "12px", fontWeight: "600", cursor: "pointer", padding: 0, textDecoration: "underline" }}>
+                Mot de passe oublié ?
+              </button>
+            </div>
             <input type="password" value={password} onChange={e => setPassword(e.target.value)}
               onKeyDown={e => e.key === "Enter" && handleLogin()}
               placeholder="••••••••" style={inputStyle} />

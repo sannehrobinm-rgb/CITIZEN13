@@ -47,7 +47,7 @@ export async function POST(req: NextRequest) {
                     <p style="margin:0;font-size:14px;color:#111;"><strong>Mot de passe :</strong> ${password || "admin000"}</p>
                   </div>
                   <div style="text-align:center;margin-bottom:24px;">
-                    <a href="${APP_URL}/login" style="display:inline-block;background:linear-gradient(135deg,#1a6b2e,#1a3a6b);color:white;text-decoration:none;padding:14px 32px;border-radius:10px;font-weight:700;font-size:15px;">
+                    <a href="${APP_URL}/login" style="display:inline-block;background:linear-gradient(135deg,#1a6b2e,#1a3a6b);color:#1a6b2e;text-decoration:none;padding:14px 32px;border-radius:10px;font-weight:700;font-size:15px;">
                       → Accéder à l'application
                     </a>
                   </div>

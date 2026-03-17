@@ -1317,11 +1317,13 @@ export default function AdminDashboard() {
         </div>
       )}
 
-      {/* Modal Edit Template */}
+   {/* Modal Edit Template */}
       {selectedTemplate && (
         <div style={backdrop}>
           <div style={{ background: C.white, borderRadius: "14px", padding: "24px", width: "500px", maxWidth: "95vw", maxHeight: "85vh", overflowY: "auto" }}>
-            <h2 style={{ margin: "0 0 16px", fontSize: "17px", fontWeight: "800", color: C.text }}>✏️ Modifier {selectedTemplate.title}</h2>
+            <h2 style={{ margin: "0 0 16px", fontSize: "17px", fontWeight: "800", color: C.text }}>
+              {!selectedTemplate.id || selectedTemplate.id === 0 ? "➕ Nouveau template" : `✏️ Modifier ${selectedTemplate.title}`}
+            </h2>
             <label style={{ fontSize: "12px", color: C.muted }}>Titre</label>
             <input value={selectedTemplate.title} onChange={e => setSelectedTemplate({ ...selectedTemplate, title: e.target.value })}
               style={{ display: "block", width: "100%", padding: "8px 12px", border: `1px solid ${C.border}`, borderRadius: "8px", marginBottom: "16px", fontSize: "14px", boxSizing: "border-box", color: C.text }} />
@@ -1335,8 +1337,12 @@ export default function AdminDashboard() {
             ))}
             <button onClick={() => setSelectedTemplate({ ...selectedTemplate, questions: [...selectedTemplate.questions, ""] })} style={{ ...btn(C.g4), marginBottom: "16px" }}>+ Question</button>
             <div style={{ display: "flex", gap: "8px" }}>
-              <button onClick={() => { fetch(`${API}/api/admin/forms/templates/${selectedTemplate.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(selectedTemplate) }).then(() => { fetchTemplates(); setSelectedTemplate(null); }); }}
-                style={{ flex: 1, padding: "10px", background: C.g1, color: "#fff", border: "none", borderRadius: "8px", cursor: "pointer", fontWeight: "700" }}>✅ Sauvegarder</button>
+              <button onClick={() => {
+                const isNew = !selectedTemplate.id || selectedTemplate.id === 0;
+                fetch(isNew ? `/api/admin/forms/templates` : `/api/admin/forms/templates/${selectedTemplate.id}`,
+                  { method: isNew ? "POST" : "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(selectedTemplate) }
+                ).then(() => { fetchTemplates(); setSelectedTemplate(null); });
+              }} style={{ flex: 1, padding: "10px", background: C.g1, color: "#fff", border: "none", borderRadius: "8px", cursor: "pointer", fontWeight: "700" }}>✅ Sauvegarder</button>
               <button onClick={() => setSelectedTemplate(null)} style={{ flex: 1, padding: "10px", background: C.g4, color: "#fff", border: "none", borderRadius: "8px", cursor: "pointer", fontWeight: "700" }}>Annuler</button>
             </div>
           </div>

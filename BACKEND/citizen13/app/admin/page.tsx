@@ -507,20 +507,27 @@ export default function AdminDashboard() {
     } catch { alert("Erreur mise à jour"); }
   };
   const handleInviteAgent = async (agent: Agent) => {
-    if (!agent.email) { alert("Cet agent n'a pas d'email renseigné."); return; }
-    if (!window.confirm(`Envoyer le lien d'accès à ${agent.email} ?`)) return;
-    setInvitingAgent(agent.id);
-    try {
-      const res = await fetch(`${API}/api/agents/invite`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: agent.email, nom: agent.nom, prenom: agent.prenom, password: "admin000" }),
-      });
-      const data = await res.json();
-      if (data.success) alert(`✅ Invitation envoyée à ${agent.email}`);
-      else alert("❌ Erreur lors de l'envoi du mail");
-    } catch { alert("Erreur réseau"); }
-    finally { setInvitingAgent(null); }
-  };
+  if (!agent.email) { alert("Cet agent n'a pas d'email renseigné."); return; }
+  if (!window.confirm(`Envoyer le lien d'accès à ${agent.email} ?`)) return;
+  setInvitingAgent(agent.id);
+  try {
+    // 1. Met à jour le mot de passe en DB
+    await fetch(`/api/agents/${agent.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ password: "admin000" }),
+    });
+    // 2. Envoie l'email
+    const res = await fetch(`/api/agents/invite`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: agent.email, nom: agent.nom, prenom: agent.prenom, password: "admin000" }),
+    });
+    const data = await res.json();
+    if (data.success) alert(`✅ Invitation envoyée à ${agent.email}`);
+    else alert("❌ Erreur lors de l'envoi du mail");
+  } catch { alert("Erreur réseau"); }
+  finally { setInvitingAgent(null); }
+};
 
   const handleSaveDon = async () => {
     if (!editingDon) return;

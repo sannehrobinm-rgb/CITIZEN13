@@ -1305,7 +1305,10 @@ export default function AdminDashboard() {
       {showTemplateModal && (
         <div style={backdrop}>
           <div style={{ background: C.white, borderRadius: "14px", padding: "24px", width: "500px", maxWidth: "95vw", maxHeight: "85vh", overflowY: "auto" }}>
-            <h2 style={{ margin: "0 0 16px", fontSize: "17px", fontWeight: "800", color: C.text }}>📋 Templates Formulaires</h2>
+<div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
+  <h2 style={{ margin: 0, fontSize: "17px", fontWeight: "800", color: C.text }}>📋 Templates Formulaires</h2>
+  <button onClick={() => { setSelectedTemplate({ id: 0, title: "", questions: [], isActive: true, createdAt: "", updatedAt: "" }); setShowTemplateModal(false); }} style={{ padding: "8px 14px", background: GRADIENT, color: "white", border: "none", borderRadius: "8px", cursor: "pointer", fontWeight: "700", fontSize: "13px" }}>➕ Nouveau</button>
+</div>
             {templates.map(t => (
               <div key={t.id} style={{ border: `1px solid ${C.border}`, borderRadius: "8px", padding: "12px", marginBottom: "10px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <span style={{ fontWeight: "600", color: C.text }}>{t.title}</span>

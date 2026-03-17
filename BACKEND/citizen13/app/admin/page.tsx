@@ -1301,25 +1301,38 @@ export default function AdminDashboard() {
         </div>
       )}
 
-      {/* Modal Templates */}
-      {showTemplateModal && (
-        <div style={backdrop}>
-          <div style={{ background: C.white, borderRadius: "14px", padding: "24px", width: "500px", maxWidth: "95vw", maxHeight: "85vh", overflowY: "auto" }}>
-<div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
-  <h2 style={{ margin: 0, fontSize: "17px", fontWeight: "800", color: C.text }}>📋 Templates Formulaires</h2>
-  <button onClick={() => { setSelectedTemplate({ id: 0, title: "", questions: [], isActive: true, createdAt: "", updatedAt: "" }); setShowTemplateModal(false); }} style={{ padding: "8px 14px", background: GRADIENT, color: "white", border: "none", borderRadius: "8px", cursor: "pointer", fontWeight: "700", fontSize: "13px" }}>➕ Nouveau</button>
-</div>
-            {templates.map(t => (
-              <div key={t.id} style={{ border: `1px solid ${C.border}`, borderRadius: "8px", padding: "12px", marginBottom: "10px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <span style={{ fontWeight: "600", color: C.text }}>{t.title}</span>
-                <button onClick={() => { setSelectedTemplate(t); setShowTemplateModal(false); }} style={btn(C.g1)}>✏️ Modifier</button>
-              </div>
-            ))}
-            <button onClick={() => setShowTemplateModal(false)} style={{ marginTop: "10px", padding: "10px", background: C.g4, color: "#fff", border: "none", borderRadius: "8px", cursor: "pointer", width: "100%", fontWeight: "600" }}>Fermer</button>
+     {/* Modal Templates */}
+{showTemplateModal && (
+  <div style={backdrop}>
+    <div style={{ background: C.white, borderRadius: "14px", padding: "24px", width: "500px", maxWidth: "95vw", maxHeight: "85vh", overflowY: "auto" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
+        <h2 style={{ margin: 0, fontSize: "17px", fontWeight: "800", color: C.text }}>📋 Templates Formulaires</h2>
+        <button onClick={() => { setSelectedTemplate({ id: 0, title: "", questions: [], isActive: true, createdAt: "", updatedAt: "" }); setShowTemplateModal(false); }}
+          style={{ padding: "8px 14px", background: GRADIENT, color: "white", border: "none", borderRadius: "8px", cursor: "pointer", fontWeight: "700", fontSize: "13px" }}>➕ Nouveau</button>
+      </div>
+      <h3 style={{ fontSize: "11px", color: C.muted, textTransform: "uppercase", marginBottom: "8px" }}>Actifs</h3>
+      {templates.filter((t: any) => !t.archived).map(t => (
+        <div key={t.id} style={{ border: `1px solid ${C.border}`, borderRadius: "8px", padding: "12px", marginBottom: "8px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <span style={{ fontWeight: "600", color: C.text }}>{t.title}</span>
+          <div style={{ display: "flex", gap: "6px" }}>
+            <button onClick={() => { setSelectedTemplate(t); setShowTemplateModal(false); }} style={btn(C.g1)}>✏️</button>
+            <button onClick={() => { fetch(`/api/admin/forms/templates/${t.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...t, archived: true }) }).then(() => fetchTemplates()); }} style={btn("#c97a00")}>🗂</button>
           </div>
         </div>
-      )}
-
+      ))}
+      {templates.filter((t: any) => t.archived).length > 0 && <>
+        <h3 style={{ fontSize: "11px", color: C.muted, textTransform: "uppercase", margin: "16px 0 8px" }}>Archivés</h3>
+        {templates.filter((t: any) => t.archived).map(t => (
+          <div key={t.id} style={{ border: `1px dashed ${C.border}`, borderRadius: "8px", padding: "12px", marginBottom: "8px", display: "flex", justifyContent: "space-between", alignItems: "center", opacity: 0.7 }}>
+            <span style={{ fontWeight: "600", color: C.muted }}>{t.title}</span>
+            <button onClick={() => { fetch(`/api/admin/forms/templates/${t.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...t, archived: false }) }).then(() => fetchTemplates()); }} style={btn(C.g3)}>↩️ Restaurer</button>
+          </div>
+        ))}
+      </>}
+      <button onClick={() => setShowTemplateModal(false)} style={{ marginTop: "10px", padding: "10px", background: C.g4, color: "#fff", border: "none", borderRadius: "8px", cursor: "pointer", width: "100%", fontWeight: "600" }}>Fermer</button>
+    </div>
+  </div>
+)}
    {/* Modal Edit Template */}
       {selectedTemplate && (
         <div style={backdrop}>

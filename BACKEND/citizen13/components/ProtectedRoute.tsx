@@ -16,6 +16,14 @@ export default function ProtectedRoute({ children, roles }: Props) {
     if (!token) { router.replace("/login"); return; }
     if (roles && role && !roles.includes(role)) { router.replace("/"); }
   }, [router, roles]);
+useEffect(() => {
+  const token = localStorage.getItem("token");
+  const role = localStorage.getItem("role");
+  const isDemo = localStorage.getItem("demo_mode"); // ← AJOUT
 
+  if (!token) { router.replace("/login"); return; }
+  if (isDemo) return; // ← AJOUT : mode démo, on laisse passer
+  if (roles && role && !roles.includes(role)) { router.replace("/"); }
+}, [router, roles]);
   return <>{children}</>;
 }

@@ -52,7 +52,13 @@ export default function Login() {
     fontSize: "11px", fontWeight: "700", color: C.muted,
     textTransform: "uppercase", letterSpacing: "0.4px",
   };
-
+const handleDemo = () => {
+  localStorage.setItem("token", "demo-token");
+  localStorage.setItem("role", "demo");
+  localStorage.setItem("user", "Visiteur Démo");
+  localStorage.setItem("demo_mode", "true");
+  router.push("/visit");
+};
   return (
     <div style={{ minHeight: "100vh", background: GRADIENT, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", fontFamily: "'Segoe UI', sans-serif", padding: "16px" }}>
       <div style={{ background: C.white, borderRadius: "20px", padding: "40px 36px", width: "100%", maxWidth: "400px", boxShadow: "0 24px 64px rgba(0,0,0,0.25)" }}>
@@ -94,6 +100,10 @@ export default function Login() {
             style={{ padding: "13px", background: loading ? "#aaa" : GRADIENT, color: "white", border: "none", borderRadius: "10px", cursor: loading ? "wait" : "pointer", fontWeight: "700", fontSize: "15px", marginTop: "4px", boxShadow: "0 4px 14px rgba(26,107,46,0.3)", transition: "opacity 0.2s" }}>
             {loading ? "Connexion..." : "Se connecter →"}
           </button>
+          <button onClick={handleDemo}
+  style={{ padding: "13px", background: "transparent", color: C.g1, border: `1.5px solid ${C.g1}`, borderRadius: "10px", cursor: "pointer", fontWeight: "700", fontSize: "15px", marginTop: "4px" }}>
+  Explorer en démo
+</button>
         </div>
 
         <p style={{ textAlign: "center", marginTop: "24px", fontSize: "12px", color: "#bbb" }}>

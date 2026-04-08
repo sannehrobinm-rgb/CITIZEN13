@@ -208,6 +208,7 @@ model form_templates {
   title      String   @db.VarChar(200)
   questions  String[]
   isActive   Boolean  @default(true)
+  archived   Boolean  @default(false)
   rib        String?  @db.VarChar(200)
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
